@@ -33,7 +33,6 @@ class ConfigManager {
 
   reload(): void {
     const ws = vscode.workspace.getConfiguration("gitchat");
-    const trending = vscode.workspace.getConfiguration("trending");
     this._config = {
       apiUrl: process.env.GITCHAT_API_URL as string,
       wsUrl: process.env.GITCHAT_WS_URL as string,
@@ -42,7 +41,6 @@ class ConfigManager {
       showMessageNotifications: ws.get<boolean>("showMessageNotifications", true),
       messageSound: ws.get<boolean>("messageSound", false),
       debugLogs: ws.get<boolean>("debugLogs", false),
-      wsDiscoverOnlineNow: trending.get<boolean>("wsDiscoverOnlineNow", false),
     };
     this._onDidChange.fire(this._config);
   }

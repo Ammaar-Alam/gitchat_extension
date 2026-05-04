@@ -85,8 +85,6 @@ var devLoadedTabs = {};
 var devCurrentRange = 'weekly';
 var devReposSearchTimer = null;
 // devTrendingReposCache / devTrendingPeopleCache removed (issue #49 — Develop tab dead code)
-var discoverOnlineNow = []; // WP8: non-mutual online users from GET /discover/online-now
-var _onlineNowWsSnapshotReceived = false; // Task 4.2: WS snapshot precedence over REST fallback
 var devChannelsList = [];
 var devChatFriends = [];
 var devChatConversations = [];
@@ -192,7 +190,6 @@ document.querySelectorAll(".gs-main-tab").forEach(function(tab) {
     var currentContainer = document.getElementById(currentId);
     if (currentContainer) tabScrollPositions[chatMainTab] = currentContainer.scrollTop;
 
-    var _prevTab = chatMainTab;
     document.querySelectorAll(".gs-main-tab").forEach(function(t) { t.classList.remove("active"); });
     tab.classList.add("active");
     chatMainTab = tab.dataset.tab;
@@ -201,22 +198,6 @@ document.querySelectorAll(".gs-main-tab").forEach(function(tab) {
     // Notify host of tab change so isShowingChat() can suppress redundant
     // toasts while the user is viewing the chat inbox list (rows self-update).
     vscode.postMessage({ type: "mainTabChanged", payload: { tab: chatMainTab } });
-
-    // Task 4.2: Discover tab lifecycle — notify provider to sub/unsub WS discover:online-now
-    if (chatMainTab === "discover" && _prevTab !== "discover") {
-      _onlineNowWsSnapshotReceived = false;
-      vscode.postMessage({ type: "discoverTabActive" });
-      // 3s REST fallback — if WS snapshot hasn't arrived and list is still empty,
-      // ask provider to populate via REST. If WS snapshot arrives later, it will
-      // fully replace the REST-populated list (spec §5.4 precedence rule).
-      setTimeout(function() {
-        if (!_onlineNowWsSnapshotReceived && discoverOnlineNow.length === 0) {
-          vscode.postMessage({ type: "discoverOnlineNowRestFallback" });
-        }
-      }, 3000);
-    } else if (_prevTab === "discover" && chatMainTab !== "discover") {
-      vscode.postMessage({ type: "discoverTabInactive" });
-    }
 
     // Show/hide sub-elements based on tab
     var filterBar = document.getElementById("chat-filter-bar");
@@ -1061,19 +1042,11 @@ function renderDiscover() {
       return key && key !== "/" && !joinedCommunityRepoSet.has(key);
     })
     .map(starredRepoToDiscoverCommunity);
-  // WP8: use BE-supplied non-mutual online users instead of mutual chatFriends
-  var onlineNow = discoverOnlineNow.length > 0
-    ? discoverOnlineNow.map(function(u) {
-        return { login: u.login, name: u.name, avatar_url: u.avatarUrl, online: true };
-      })
-    : (chatFriends || []).filter(function(f) { return f.online; });
-
   // Apply search filter
   if (chatSearchQuery) {
     var q = chatSearchQuery.toLowerCase();
     people = people.filter(function(f) { return (f.login || "").toLowerCase().indexOf(q) !== -1 || (f.name || "").toLowerCase().indexOf(q) !== -1; });
     communities = communities.filter(function(c) { return (c.displayName || c.repoOwner + "/" + c.repoName || c.name || "").toLowerCase().indexOf(q) !== -1; });
-    onlineNow = onlineNow.filter(function(f) { return (f.login || "").toLowerCase().indexOf(q) !== -1 || (f.name || "").toLowerCase().indexOf(q) !== -1; });
 
     // Merge API-backed user search results into the PEOPLE section (dedup by login).
     // Tag API users with _isSearchResult so clicking opens the profile panel instead
@@ -1093,7 +1066,7 @@ function renderDiscover() {
 
   // Search empty state — only show after API has settled (not during loading)
   var apiHasSettled = !discoverSearchLoading && discoverSearchResults !== null;
-  if (chatSearchQuery && apiHasSettled && people.length === 0 && communities.length === 0 && onlineNow.length === 0) {
+  if (chatSearchQuery && apiHasSettled && people.length === 0 && communities.length === 0) {
     container.innerHTML = '<div class="gs-empty">No results for "' + escapeHtml(chatSearchQuery) + '"</div>';
     return;
   }
@@ -1162,14 +1135,6 @@ function renderDiscover() {
   }
   html += buildAccordionSection("discover", "communities", "COMMUNITIES", communitiesReady ? communities.length : 0, state.communities !== false, "default",
     (communitiesReady ? communities.map(function(c) { return buildDiscoverCommunityRow(c); }).join("") : "") || communityEmpty
-  );
-
-  // Online Now — mixed mutuals + one-way follows who are active right now.
-  // Row rendering decides per-row whether to show Wave (non-mutual) or
-  // chevron (mutual → normal DM via row click).
-  html += buildAccordionSection("discover", "onlinenow", "ONLINE NOW", onlineNow.length, state.onlinenow !== false, "online",
-    onlineNow.map(function(f) { return buildDiscoverOnlineRow(f); }).join("") ||
-    '<div class="gs-empty gs-text-sm"><span class="codicon codicon-circle-outline"></span> No one online right now</div>'
   );
 
   container.innerHTML = html;
@@ -2541,31 +2506,6 @@ window.addEventListener("message", function(e) {
   }
 
   // Show ProfileCard from extension (notification clicks, etc.)
-  // WP8: receive non-mutual online users from BE
-  if (data.type === "setOnlineNow" && Array.isArray(data.users)) {
-    discoverOnlineNow = data.users;
-    if (chatMainTab === "discover") { renderDiscover(); }
-    return;
-  }
-
-  // Task 4.2: WS discover:online-now snapshot / delta (from provider)
-  if (data && data.type === "discoverOnlineNowSnapshot") {
-    _onlineNowWsSnapshotReceived = true;
-    discoverOnlineNow = (data.payload && data.payload.users) ? data.payload.users : [];
-    if (chatMainTab === "discover") { renderDiscover(); }
-    return;
-  }
-  if (data && data.type === "discoverOnlineNowDelta") {
-    var addedUsers = (data.payload && data.payload.added) || [];
-    var removedLogins = new Set(((data.payload && data.payload.removed) || []));
-    var addedLoginSet = new Set(addedUsers.map(function(u) { return u.login; }));
-    discoverOnlineNow = discoverOnlineNow
-      .filter(function(u) { return !removedLogins.has(u.login) && !addedLoginSet.has(u.login); })
-      .concat(addedUsers);
-    if (chatMainTab === "discover") { renderDiscover(); }
-    return;
-  }
-
   if (data.type === "showProfileCard" && data.login && window.ProfileScreen) {
     window.ProfileScreen.show(data.login);
     return;

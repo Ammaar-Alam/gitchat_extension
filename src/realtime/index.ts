@@ -30,8 +30,6 @@ const WS_EVENTS = {
   REACTION_NEW: "reaction:new",
   NOTIFICATION_NEW: "notification:new",
   WAVE_RESPONDED: "wave:responded",
-  DISCOVER_ONLINE_NOW_SNAPSHOT: "discover:online-now:snapshot",
-  DISCOVER_ONLINE_NOW_DELTA: "discover:online-now:delta",
   TOPIC_CREATED: "topic:created",
   TOPIC_MESSAGE: "topic:message",
   TOPIC_UPDATED: "topic:updated",
@@ -45,16 +43,7 @@ const WS_SUBSCRIBE = {
   WATCH_PRESENCE: "watch:presence",
   UNWATCH_PRESENCE: "unwatch:presence",
   PRESENCE_HEARTBEAT: "presence:heartbeat",
-  DISCOVER_ONLINE_NOW_SUBSCRIBE: "discover:online-now:subscribe",
-  DISCOVER_ONLINE_NOW_UNSUBSCRIBE: "discover:online-now:unsubscribe",
 } as const;
-
-export interface OnlineNowUser {
-  login: string;
-  name: string | null;
-  avatarUrl: string | null;
-  lastSeenAt: string | null;
-}
 
 // Backend presence TTL is 90s and sweeper marks offline if no heartbeat
 // arrives within ~75–90s. We must emit a heartbeat well inside that window.
@@ -113,15 +102,6 @@ class RealtimeClient {
   private readonly _onMemberLeft = new vscode.EventEmitter<{ conversationId: string; login: string }>();
   readonly onMemberLeft = this._onMemberLeft.event;
 
-  private _discoverOnlineNowSubscribed = false;
-  private _discoverOnlineNowLimit = 20;
-
-  private readonly _onDiscoverOnlineNowSnapshot = new vscode.EventEmitter<{ users: OnlineNowUser[] }>();
-  readonly onDiscoverOnlineNowSnapshot = this._onDiscoverOnlineNowSnapshot.event;
-
-  private readonly _onDiscoverOnlineNowDelta = new vscode.EventEmitter<{ added: OnlineNowUser[]; removed: string[] }>();
-  readonly onDiscoverOnlineNowDelta = this._onDiscoverOnlineNowDelta.event;
-
   private readonly _onTopicCreated = new vscode.EventEmitter<{ conversationId: string; topic: Topic }>();
   readonly onTopicCreated = this._onTopicCreated.event;
 
@@ -178,11 +158,6 @@ class RealtimeClient {
       // (websocket-relayer.service.ts) which takes `{ login: string }`.
       for (const login of this._watchedPresenceLogins) {
         this._socket?.emit(WS_SUBSCRIBE.WATCH_PRESENCE, { login });
-      }
-      // Re-subscribe to discover online-now if previously subscribed. Mirror
-      // of the presence re-watch pattern above so behavior survives reconnect.
-      if (this._discoverOnlineNowSubscribed) {
-        this._socket?.emit(WS_SUBSCRIBE.DISCOVER_ONLINE_NOW_SUBSCRIBE, { limit: this._discoverOnlineNowLimit });
       }
     });
 
@@ -358,30 +333,6 @@ class RealtimeClient {
     this._socket.on(WS_EVENTS.PRESENCE_UPDATED, handlePresence);
     this._socket.on(WS_EVENTS.PRESENCE_SNAPSHOT, handlePresence);
 
-    // ─── Discover online-now events ───
-    this._socket.on(WS_EVENTS.DISCOVER_ONLINE_NOW_SNAPSHOT, (payload: { data?: { users: OnlineNowUser[] } }) => {
-      const users = payload.data?.users ?? [];
-      this._onDiscoverOnlineNowSnapshot.fire({ users });
-      // Cross-channel write-through: snapshot implies these users are online NOW
-      for (const u of users) {
-        presenceStore.set(u.login, { online: true, lastSeenAt: u.lastSeenAt });
-      }
-    });
-
-    this._socket.on(WS_EVENTS.DISCOVER_ONLINE_NOW_DELTA, (payload: { data?: { added: OnlineNowUser[]; removed: string[] } }) => {
-      const added = payload.data?.added ?? [];
-      const removed = payload.data?.removed ?? [];
-      this._onDiscoverOnlineNowDelta.fire({ added, removed });
-      for (const u of added) {
-        presenceStore.set(u.login, { online: true, lastSeenAt: u.lastSeenAt });
-      }
-      for (const login of removed) {
-        // Do NOT delete the entry — preserve lastSeenAt from prev state
-        const prev = presenceStore.get(login);
-        presenceStore.set(login, { online: false, lastSeenAt: prev?.lastSeenAt ?? null });
-      }
-    });
-
     // ─── Typing events (match backend typing:start / typing:stop) ───
     this._socket.on("typing:start", (data: { login: string; conversationId?: string }) => {
       this._onTyping.fire({ conversationId: data.conversationId || "", user: data.login });
@@ -483,17 +434,6 @@ class RealtimeClient {
     }
   }
 
-  subscribeDiscoverOnlineNow(limit = 20): void {
-    this._discoverOnlineNowSubscribed = true;
-    this._discoverOnlineNowLimit = limit;
-    this._socket?.emit(WS_SUBSCRIBE.DISCOVER_ONLINE_NOW_SUBSCRIBE, { limit });
-  }
-
-  unsubscribeDiscoverOnlineNow(): void {
-    this._discoverOnlineNowSubscribed = false;
-    this._socket?.emit(WS_SUBSCRIBE.DISCOVER_ONLINE_NOW_UNSUBSCRIBE);
-  }
-
   unwatchPresence(logins: string[]): void {
     for (const login of logins) {
       if (!login || !this._watchedPresenceLogins.has(login)) { continue; }
@@ -519,8 +459,6 @@ class RealtimeClient {
     this._onReactionNew.dispose();
     this._onMemberAdded.dispose();
     this._onMemberLeft.dispose();
-    this._onDiscoverOnlineNowSnapshot.dispose();
-    this._onDiscoverOnlineNowDelta.dispose();
     this._onTopicCreated.dispose();
     this._onTopicMessage.dispose();
     this._onTopicUpdated.dispose();

@@ -56,10 +56,6 @@ export class ExploreWebviewProvider implements vscode.WebviewViewProvider {
   private _toastVisTimer?: ReturnType<typeof setTimeout>;
   private _webviewRenderer: import("../notifications/renderers/webview-renderer").WebviewRenderer | undefined;
   private _followChangeSub?: vscode.Disposable;
-  private _onlineNowSnapSub?: vscode.Disposable;
-  private _onlineNowDeltaSub?: vscode.Disposable;
-  private _configChangeSub?: vscode.Disposable;
-  private _discoverTabActive = false;
   private _context?: vscode.ExtensionContext;
   private _pickId = 5000; // IDs for extension-side file picks
   private _pendingBadge: number | null = null;
@@ -236,30 +232,6 @@ export class ExploreWebviewProvider implements vscode.WebviewViewProvider {
         login: e.username,
         following: e.following,
       });
-    });
-
-    // Task 4.2: Forward WS discover:online-now snapshot/delta to webview
-    this._onlineNowSnapSub?.dispose();
-    this._onlineNowSnapSub = realtimeClient.onDiscoverOnlineNowSnapshot((payload) => {
-      this.view?.webview.postMessage({ type: "discoverOnlineNowSnapshot", payload });
-    });
-    this._onlineNowDeltaSub?.dispose();
-    this._onlineNowDeltaSub = realtimeClient.onDiscoverOnlineNowDelta((payload) => {
-      this.view?.webview.postMessage({ type: "discoverOnlineNowDelta", payload });
-    });
-
-    // Task 5.1: Live-toggle WS Online Now when the feature flag changes.
-    this._configChangeSub?.dispose();
-    this._configChangeSub = vscode.workspace.onDidChangeConfiguration((e) => {
-      if (!e.affectsConfiguration("trending.wsDiscoverOnlineNow")) return;
-      if (!this._discoverTabActive) return;
-      const nowEnabled = configManager.current.wsDiscoverOnlineNow;
-      if (nowEnabled) {
-        realtimeClient.subscribeDiscoverOnlineNow(20);
-      } else {
-        realtimeClient.unsubscribeDiscoverOnlineNow();
-        this._loadOnlineNowViaRest();
-      }
     });
 
     // Apply pending badge if set before view was resolved
@@ -450,11 +422,6 @@ export class ExploreWebviewProvider implements vscode.WebviewViewProvider {
         drafts = cp.getAllDrafts();
       } catch { /* ignore */ }
       this.view.webview.postMessage({ type: "setChatData", friends, mutualFriends, conversations: convData, currentUser: authManager.login, drafts });
-
-      // WP8 Wave: getOnlineNow commented out for release — re-enable when wave ships
-      // apiClient.getOnlineNow(20).then((users) => {
-      //   this.view?.webview.postMessage({ type: "setOnlineNow", users });
-      // }).catch((err) => log(`[Explore/Discover] getOnlineNow failed: ${err}`, "warn"));
     } catch (err) {
       log(`[Explore/Chat] refresh failed: ${err}`, "warn");
     }
@@ -1261,34 +1228,11 @@ export class ExploreWebviewProvider implements vscode.WebviewViewProvider {
       return;
     }
 
-    // Task 4.2/5.1: Discover tab lifecycle → WS sub/unsub (flag-gated) + REST fallback
-    if (msg.type === "discoverTabActive") {
-      this._discoverTabActive = true;
-      if (configManager.current.wsDiscoverOnlineNow) {
-        realtimeClient.subscribeDiscoverOnlineNow(20);
-      } else {
-        // Legacy REST path — trigger fallback immediately instead of waiting 3s
-        this._loadOnlineNowViaRest();
-      }
-      return;
-    }
-    if (msg.type === "discoverTabInactive") {
-      this._discoverTabActive = false;
-      if (configManager.current.wsDiscoverOnlineNow) {
-        realtimeClient.unsubscribeDiscoverOnlineNow();
-      }
-      return;
-    }
     if (msg.type === "mainTabChanged") {
       const tab = (msg.payload as { tab?: string } | undefined)?.tab;
       if (typeof tab === "string") {
         this._currentMainTab = tab;
       }
-      return;
-    }
-    if (msg.type === "discoverOnlineNowRestFallback") {
-      // Fire-and-forget REST call; WS snapshot will replace if it arrives later.
-      this._loadOnlineNowViaRest();
       return;
     }
 
@@ -2107,23 +2051,9 @@ export class ExploreWebviewProvider implements vscode.WebviewViewProvider {
     }
   }
 
-  private _loadOnlineNowViaRest(): void {
-    apiClient.getOnlineNow(20).then((users) => {
-      if (!this.view?.webview) return;
-      this.view.webview.postMessage({ type: "discoverOnlineNowSnapshot", payload: { users } });
-    }).catch((err) => {
-      log(`[Explore] REST fallback for online-now failed: ${err}`, "warn");
-    });
-  }
-
   dispose(): void {
     this._followChangeSub?.dispose();
-    this._onlineNowSnapSub?.dispose();
-    this._onlineNowDeltaSub?.dispose();
-    this._configChangeSub?.dispose();
     if (this._toastVisTimer) { clearTimeout(this._toastVisTimer); this._toastVisTimer = undefined; }
-    // Defensive: ensure WS subscription cleared on view dispose
-    try { realtimeClient.unsubscribeDiscoverOnlineNow(); } catch { /* ignore */ }
   }
 
   // ===================== HTML TEMPLATE =====================
