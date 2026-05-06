@@ -97,7 +97,7 @@ export async function handleChatMessage(
     case "send": {
       const sp = msg.payload as {
         content?: string; _tempId?: string; suppressLinkPreview?: boolean; topicId?: string;
-        attachments?: { type: string; url: string; storage_path: string; filename?: string; mime_type?: string; size_bytes?: number }[];
+        attachments?: { type: string; url: string; storage_path: string; filename?: string; mime_type?: string; size_bytes?: number; duration_seconds?: number; thumbnail_url?: string }[];
       };
       if (!sp?.content && !sp?.attachments?.length) { return true; }
 
@@ -519,7 +519,7 @@ export async function handleChatMessage(
     case "reply": {
       const rp = msg.payload as {
         content: string; replyToId: string; _tempId?: string; suppressLinkPreview?: boolean; topicId?: string;
-        attachments?: { type: string; url: string; storage_path: string; filename?: string; mime_type?: string; size_bytes?: number }[];
+        attachments?: { type: string; url: string; storage_path: string; filename?: string; mime_type?: string; size_bytes?: number; duration_seconds?: number; thumbnail_url?: string }[];
       };
       if ((rp?.content || rp?.attachments?.length) && rp?.replyToId) {
         try {

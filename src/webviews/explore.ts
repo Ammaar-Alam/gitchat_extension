@@ -651,15 +651,15 @@ export class ExploreWebviewProvider implements vscode.WebviewViewProvider {
     try {
       const fileData = await vscode.workspace.fs.readFile(fileUri);
       const buffer = Buffer.from(fileData);
-      const maxSize = 10 * 1024 * 1024;
-      if (buffer.length > maxSize) {
-        const sizeMB = (buffer.length / 1024 / 1024).toFixed(1);
-        vscode.window.showWarningMessage(`File too large (${sizeMB}MB, max 10MB): ${filename}`);
-        return;
-      }
-
       const isImage = mimeType.startsWith("image/");
       const isVideo = mimeType.startsWith("video/");
+      const maxSize = isVideo ? 100 * 1024 * 1024 : 10 * 1024 * 1024;
+      if (buffer.length > maxSize) {
+        const sizeMB = (buffer.length / 1024 / 1024).toFixed(1);
+        const limit = isVideo ? "100MB" : "10MB";
+        vscode.window.showWarningMessage(`File too large (${sizeMB}MB, max ${limit}): ${filename}`);
+        return;
+      }
       let dataUri: string | undefined;
       if (isImage) {
         dataUri = `data:${mimeType};base64,${buffer.toString("base64")}`;
@@ -668,7 +668,11 @@ export class ExploreWebviewProvider implements vscode.WebviewViewProvider {
       this.postToWebview({ type: "chat:addPickedFile", id, filename, mimeType, dataUri: isImage ? dataUri : null, isVideo });
 
       const result = await apiClient.uploadAttachment(this._activeChatConvId!, buffer, filename, mimeType);
-      this.postToWebview({ type: "chat:uploadComplete", id, attachment: result });
+      const attachment = {
+        ...result,
+        type: result.is_video ? "video" : (isImage ? "image" : "file"),
+      };
+      this.postToWebview({ type: "chat:uploadComplete", id, attachment });
     } catch (err: unknown) {
       const errMsg = err instanceof Error ? err.message : String(err);
       const status = (err as { response?: { status?: number } })?.response?.status;

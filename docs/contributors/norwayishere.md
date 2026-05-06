@@ -4,7 +4,7 @@
 
 - **Role:** PO
 - **Branch:** feat/video
-- **Task:** Fixed optimistic video bubble — tempMsg now includes readyAttachments so sender sees the video poster + play button immediately after sending, without waiting for server echo. Updated uploadAttachment return type to expose is_video flag.
+- **Task:** Full video messaging implementation — video upload size limit raised to 100MB, attachment type field derived on upload, duration_seconds/thumbnail_url wired through all send payloads in extension and webapp.
 - **Blockers:** None
 - **Last updated:** 2026-05-06
 

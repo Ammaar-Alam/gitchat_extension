@@ -1660,7 +1660,15 @@
       // Build payload
       var payload = { content: chunkContent, _tempId: tempId };
       if (isFirst && readyAttachments.length > 0) {
-        payload.attachments = readyAttachments.map(function (a) { return a.result; });
+        payload.attachments = readyAttachments.map(function (a) {
+          var r = a.result;
+          if (!r) { return r; }
+          if (!r.type) {
+            var t = r.is_video ? 'video' : (r.mime_type && r.mime_type.startsWith('image/') ? 'image' : 'file');
+            r = Object.assign({}, r, { type: t });
+          }
+          return r;
+        });
       }
       if (isFirst && lpUrl) {
         payload.linkPreviewUrl = lpUrl;
@@ -2991,6 +2999,7 @@
   var _attachIdCounter = 0;
   var MAX_ATTACHMENTS = 10;
   var MAX_FILE_SIZE = 10 * 1024 * 1024;
+  var MAX_VIDEO_FILE_SIZE = 100 * 1024 * 1024;
   var _attachModalOpen = false;
   var _inputLpUrl = null;
   var _inputLpDismissed = false;
@@ -3065,7 +3074,11 @@
       showToast('Maximum ' + MAX_ATTACHMENTS + ' attachments', 3000);
       return;
     }
-    if (file.size > MAX_FILE_SIZE) { showToast('File too large (max 10MB)', 3000); return; }
+    var fileSizeLimit = file.type.startsWith('video/') ? MAX_VIDEO_FILE_SIZE : MAX_FILE_SIZE;
+    if (file.size > fileSizeLimit) {
+      showToast(file.type.startsWith('video/') ? 'Video too large (max 100MB)' : 'File too large (max 10MB)', 3000);
+      return;
+    }
     var id = ++_attachIdCounter;
     _state.pendingAttachments.push({
       id: id,
