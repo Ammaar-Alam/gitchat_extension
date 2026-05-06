@@ -230,14 +230,14 @@ class ApiClient {
     };
   }
 
-  async sendMessage(conversationId: string, content: string, attachments?: { type: string; url: string; storage_path: string; filename?: string; mime_type?: string; size_bytes?: number }[]): Promise<Message> {
+  async sendMessage(conversationId: string, content: string, attachments?: { type: string; url: string; storage_path: string; filename?: string; mime_type?: string; size_bytes?: number; duration_seconds?: number; thumbnail_url?: string }[]): Promise<Message> {
     const payload: Record<string, unknown> = { body: content };
     if (attachments?.length) { payload.attachments = attachments; }
     const { data } = await this._http.post(`/messages/conversations/${conversationId}`, payload, { timeout: 8000 });
     return data.data ?? data;
   }
 
-  async uploadAttachment(conversationId: string, fileBuffer: Buffer, filename: string, mimeType: string): Promise<{ url: string; storage_path: string; filename: string; mime_type: string; size_bytes: number }> {
+  async uploadAttachment(conversationId: string, fileBuffer: Buffer, filename: string, mimeType: string): Promise<{ url: string; storage_path: string; filename: string; mime_type: string; size_bytes: number; is_video?: boolean; type?: string }> {
     const FormData = (await import("form-data")).default;
     const form = new FormData();
     form.append("file", fileBuffer, { filename, contentType: mimeType });
@@ -398,7 +398,7 @@ class ApiClient {
     await this._http.post(`/messages/${messageId}/unsend`);
   }
 
-  async replyToMessage(conversationId: string, content: string, replyToId: string, attachments?: { type: string; url: string; storage_path: string; filename?: string; mime_type?: string; size_bytes?: number }[]): Promise<Message> {
+  async replyToMessage(conversationId: string, content: string, replyToId: string, attachments?: { type: string; url: string; storage_path: string; filename?: string; mime_type?: string; size_bytes?: number; duration_seconds?: number; thumbnail_url?: string }[]): Promise<Message> {
     const payload: Record<string, unknown> = { body: content, reply_to_id: replyToId };
     if (attachments?.length) { payload.attachments = attachments; }
     const { data } = await this._http.post(`/messages/conversations/${conversationId}`, payload, { timeout: 8000 });
@@ -552,7 +552,7 @@ class ApiClient {
     };
   }
 
-  async sendTopicMessage(conversationId: string, topicId: string, content: string, attachments?: { type: string; url: string; storage_path: string; filename?: string; mime_type?: string; size_bytes?: number }[], replyToId?: string): Promise<Message> {
+  async sendTopicMessage(conversationId: string, topicId: string, content: string, attachments?: { type: string; url: string; storage_path: string; filename?: string; mime_type?: string; size_bytes?: number; duration_seconds?: number; thumbnail_url?: string }[], replyToId?: string): Promise<Message> {
     const body: Record<string, unknown> = { body: content };
     if (attachments?.length) { body.attachments = attachments; }
     if (replyToId) { body.reply_to_id = replyToId; }

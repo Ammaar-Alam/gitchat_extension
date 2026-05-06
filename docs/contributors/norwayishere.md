@@ -3,10 +3,10 @@
 ## Current
 
 - **Role:** PO
-- **Branch:** main
-- **Task:** Released v1.1.7 to Open VSX; resolved conflicts on PR #187 (develop → main); triaged open issues on extension and iOS repos.
+- **Branch:** feat/video
+- **Task:** Full video messaging implementation — video upload size limit raised to 100MB, attachment type field derived on upload, duration_seconds/thumbnail_url wired through all send payloads in extension and webapp.
 - **Blockers:** None
-- **Last updated:** 2026-04-28
+- **Last updated:** 2026-05-06
 
 ## Decisions
 
