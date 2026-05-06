@@ -659,12 +659,13 @@ export class ExploreWebviewProvider implements vscode.WebviewViewProvider {
       }
 
       const isImage = mimeType.startsWith("image/");
+      const isVideo = mimeType.startsWith("video/");
       let dataUri: string | undefined;
       if (isImage) {
         dataUri = `data:${mimeType};base64,${buffer.toString("base64")}`;
       }
 
-      this.postToWebview({ type: "chat:addPickedFile", id, filename, mimeType, dataUri });
+      this.postToWebview({ type: "chat:addPickedFile", id, filename, mimeType, dataUri: isImage ? dataUri : null, isVideo });
 
       const result = await apiClient.uploadAttachment(this._activeChatConvId!, buffer, filename, mimeType);
       this.postToWebview({ type: "chat:uploadComplete", id, attachment: result });

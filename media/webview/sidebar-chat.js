@@ -552,6 +552,13 @@
     });
   }
 
+  function formatVideoDuration(seconds) {
+    var s = Math.round(seconds);
+    var m = Math.floor(s / 60);
+    var rem = s % 60;
+    return m + ':' + (rem < 10 ? '0' : '') + rem;
+  }
+
   function formatDateSeparator(isoDate) {
     var d = new Date(isoDate);
     var now = new Date();
@@ -718,8 +725,15 @@
       var url = (a.url || a.file_url || '').split('?')[0].toLowerCase();
       return /\.(png|jpg|jpeg|gif|webp|svg|bmp)$/.test(url);
     }
-    var imageAttachments = allAttachments.filter(isImageAttach);
-    var fileAttachments = allAttachments.filter(function (a) { return !isImageAttach(a); });
+    function isVideoAttach(a) {
+      if (a.mime_type && a.mime_type.startsWith('video/')) return true;
+      if (a.type === 'video') return true;
+      var url = (a.url || '').split('?')[0].toLowerCase();
+      return /\.(mp4|mov|m4v|webm)$/.test(url);
+    }
+    var imageAttachments = allAttachments.filter(function(a) { return isImageAttach(a) && !isVideoAttach(a); });
+    var videoAttachments = allAttachments.filter(isVideoAttach);
+    var fileAttachments = allAttachments.filter(function (a) { return !isImageAttach(a) && !isVideoAttach(a); });
 
     var attachHtml = '';
     if (imageAttachments.length > 0) {
@@ -750,6 +764,18 @@
         mosaicHtml += '</div>';
         attachHtml += mosaicHtml;
       }
+    }
+    if (videoAttachments.length > 0) {
+      attachHtml += videoAttachments.map(function(a) {
+        var thumbSrc = a.thumbnail_url ? escapeHtml(a.thumbnail_url) : '';
+        var dur = a.duration_seconds ? formatVideoDuration(a.duration_seconds) : '';
+        var videoUrl = escapeHtml(a.url || '');
+        return '<div class="gs-sc-video-bubble" data-url="' + videoUrl + '" tabindex="0" role="button" aria-label="Play video">' +
+          (thumbSrc ? '<img src="' + thumbSrc + '" class="gs-sc-video-thumb" alt="" />' : '<div class="gs-sc-video-thumb gs-sc-video-no-thumb"></div>') +
+          '<span class="gs-sc-video-play codicon codicon-play-circle"></span>' +
+          (dur ? '<span class="gs-sc-video-duration">' + escapeHtml(dur) + '</span>' : '') +
+        '</div>';
+      }).join('');
     }
     attachHtml += fileAttachments.map(function (a) {
       return '<a href="' + escapeHtml(a.url || a.file_url) + '" class="gs-sc-file-link">' +
@@ -3108,8 +3134,13 @@
       return;
     }
 
+    function isVideoFile(a) {
+      var type = (a.file && a.file.type) || '';
+      return type.startsWith('video/') || a.isVideo === true;
+    }
     var images = _state.pendingAttachments.filter(isImageFile);
-    var files = _state.pendingAttachments.filter(function (a) { return !isImageFile(a); });
+    var videoFiles = _state.pendingAttachments.filter(isVideoFile);
+    var files = _state.pendingAttachments.filter(function (a) { return !isImageFile(a) && !isVideoFile(a); });
 
     function buildPreviewHtml() {
       var html = '';
@@ -3155,6 +3186,13 @@
         }
         html += '</div>';
       }
+      for (var v = 0; v < videoFiles.length; v++) {
+        html += '<div class="gs-sc-attach-modal-file gs-sc-attach-prev-video">' +
+          '<span class="codicon codicon-file-media" style="font-size:32px;opacity:0.7"></span>' +
+          '<span class="gs-sc-attach-modal-filename">' + escapeHtml((videoFiles[v].file && videoFiles[v].file.name) || videoFiles[v].filename || 'video') + '</span>' +
+          buildUploadOverlay(videoFiles[v]) +
+        '</div>';
+      }
       for (var f = 0; f < files.length; f++) {
         html += '<div class="gs-sc-attach-modal-file">' +
           '<span class="codicon codicon-file" style="font-size:32px;opacity:0.5"></span>' +
@@ -3172,7 +3210,7 @@
       var previewArea = oldModal.querySelector('.gs-sc-attach-modal-preview');
       if (previewArea) previewArea.innerHTML = buildPreviewHtml();
       var titleEl = oldModal.querySelector('.gs-sc-attach-modal-title');
-      if (titleEl) titleEl.textContent = _state.pendingAttachments.length + (images.length > 0 ? ' Media' : ' File');
+      if (titleEl) titleEl.textContent = _state.pendingAttachments.length + (images.length > 0 || videoFiles.length > 0 ? ' Media' : ' File');
       var statusEl = oldModal.querySelector('.gs-sc-attach-modal-status');
       if (statusEl) {
         statusEl.textContent = anyFailed ? 'Upload failed' : '';
@@ -3190,7 +3228,7 @@
 
     // Create new modal
     _attachModalOpen = true;
-    var hasImages = images.length > 0;
+    var hasImages = images.length > 0 || videoFiles.length > 0;
     var overlay = document.createElement('div');
     overlay.className = 'gs-sc-attach-modal-overlay';
 
@@ -3520,6 +3558,27 @@
     if (textEl) textEl.insertAdjacentHTML('afterend', html);
   }
 
+  // Video player modal
+  function openVideoPlayer(url) {
+    var area = _els.messagesArea;
+    if (!area) return;
+    var existing = area.querySelector('.gs-sc-video-overlay');
+    if (existing) existing.remove();
+
+    var overlay = document.createElement('div');
+    overlay.className = 'gs-sc-video-overlay';
+    overlay.innerHTML =
+      '<div class="gs-sc-video-player-wrap">' +
+        '<button class="gs-sc-video-close gs-btn-icon" aria-label="Close"><span class="codicon codicon-close"></span></button>' +
+        '<video class="gs-sc-video-player" src="' + url + '" controls autoplay playsinline></video>' +
+      '</div>';
+    overlay.querySelector('.gs-sc-video-close').addEventListener('click', function() { overlay.remove(); });
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
+    function videoKeyHandler(e) { if (e.key === 'Escape') { overlay.remove(); document.removeEventListener('keydown', videoKeyHandler); } }
+    document.addEventListener('keydown', videoKeyHandler);
+    area.appendChild(overlay);
+  }
+
   // Image lightbox with prev/next navigation
   var _lbImages = [];
   var _lbIndex = 0;
@@ -3528,6 +3587,14 @@
     var container = getMsgsEl();
     if (!container) return;
     container.addEventListener('click', function (e) {
+      // Video bubble click → open inline player
+      var videoBubble = e.target.closest('.gs-sc-video-bubble');
+      if (videoBubble) {
+        e.stopPropagation();
+        openVideoPlayer(videoBubble.dataset.url);
+        return;
+      }
+
       var img = e.target.closest('.gs-sc-attachment-img');
       if (!img || !img.dataset.url) return;
       // Don't open lightbox inside pinned view

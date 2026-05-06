@@ -3,10 +3,10 @@
 ## Current
 
 - **Role:** PO
-- **Branch:** main
-- **Task:** Released v1.1.7 to Open VSX; resolved conflicts on PR #187 (develop → main); triaged open issues on extension and iOS repos.
+- **Branch:** feat/video
+- **Task:** Implementing video message rendering and inline player — video bubble UI, openVideoPlayer modal, isVideoAttach/isVideoFile helpers, upload flow fix in explore.ts, video preview in attach modal.
 - **Blockers:** None
-- **Last updated:** 2026-04-28
+- **Last updated:** 2026-05-06
 
 ## Decisions
 
