@@ -4,7 +4,7 @@
 
 - **Role:** PO
 - **Branch:** feat/video
-- **Task:** Full video messaging implementation — video upload size limit raised to 100MB, attachment type field derived on upload, duration_seconds/thumbnail_url wired through all send payloads in extension and webapp.
+- **Task:** Fix video player CSP (add media-src/connect-src), fix keydown handler leak on overlay close. All test plan items verified — merging feat/video to develop.
 - **Blockers:** None
 - **Last updated:** 2026-05-06
 

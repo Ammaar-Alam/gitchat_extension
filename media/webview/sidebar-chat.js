@@ -3588,9 +3588,10 @@
         '<button class="gs-sc-video-close gs-btn-icon" aria-label="Close"><span class="codicon codicon-close"></span></button>' +
         '<video class="gs-sc-video-player" src="' + url + '" controls autoplay playsinline></video>' +
       '</div>';
-    overlay.querySelector('.gs-sc-video-close').addEventListener('click', function() { overlay.remove(); });
-    overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
-    function videoKeyHandler(e) { if (e.key === 'Escape') { overlay.remove(); document.removeEventListener('keydown', videoKeyHandler); } }
+    function closeVideoOverlay() { overlay.remove(); document.removeEventListener('keydown', videoKeyHandler); }
+    function videoKeyHandler(e) { if (e.key === 'Escape') closeVideoOverlay(); }
+    overlay.querySelector('.gs-sc-video-close').addEventListener('click', closeVideoOverlay);
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) closeVideoOverlay(); });
     document.addEventListener('keydown', videoKeyHandler);
     area.appendChild(overlay);
   }

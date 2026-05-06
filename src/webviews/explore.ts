@@ -2085,7 +2085,7 @@ export class ExploreWebviewProvider implements vscode.WebviewViewProvider {
     return `<!DOCTYPE html>
 <html><head>
   <meta charset="UTF-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; font-src ${webview.cspSource}; script-src 'nonce-${nonce}'; img-src ${webview.cspSource} https: data: blob:;">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; font-src ${webview.cspSource}; script-src 'nonce-${nonce}'; img-src ${webview.cspSource} https: data: blob:; media-src https: blob:; connect-src https: wss:;">
   <link rel="stylesheet" href="${sharedCss}">
   <link rel="stylesheet" href="${profileScreenCss}">
   <link rel="stylesheet" href="${profileCardCss}">
