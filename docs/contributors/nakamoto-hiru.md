@@ -7,11 +7,11 @@
 - **Blockers:** None.
 - **Last updated:** 2026-05-04
 
-## Today's Plan (2026-05-04)
-- Sync `hiru-uiux` with `origin/develop` (34 commits behind, 3 conflicts auto-resolved per develop side: legacy `chat.{css,js}` deleted via #106, `toast-coordinator.ts` duplicate `actorLogin` resolved via #186).
-- Fix issue #191 — remove ONLINE NOW from Discover tab (assigned by @norwayiscoming). Full cleanup option (B) per issue's side-effects checklist.
-- **Working with:** solo (FE-only, no BE dep).
-- Verification: `npm run compile` clean (0 errors, 5 pre-existing curly-after-if warnings down from 8 because removed code had 3 of them); strict scope to issue side-effects; Wave/follow chain preserved because Profile Screen is a live caller of `discover:wave`.
+## Today's Plan (2026-04-20)
+- Implement #133 Smart notification hybrid toast Part 1 — refactor coordinator into renderer pair (`NativeRenderer` + new `WebviewRenderer`), add `selectRenderer(ctx)` routing, ship `toast-stack.{js,css}` webview component.
+- Wire #139 Phase 3 FE admin role UI — kick + timed mute in community group-info panels; Unmute slice blocked on BE (ping vincent-xbt).
+- **Working with:** solo on notification Part 1 (no BE dep); vincent-xbt on #139 (BE owner for Unmute follow-up).
+- Verification: Mocha unit tests for `selectRenderer` + stack reducer, full build, 15-row QA matrix in Extension Dev Host; for #139 verify kick/mute request hits BE via webview devtools Network tab once merged behind the draft PR.
 
 ## Decisions
 - 2026-05-04: Sync `hiru-uiux` with `origin/develop` (was 6 ahead / 34 behind). 3 conflicts auto-resolved per develop side: `media/webview/chat.{css,js}` (modify/delete) → took develop's deletion (cairo-cmd's #106 orphan ChatPanel cleanup); `src/notifications/toast-coordinator.ts` (content) → develop's resolution of duplicate `actorLogin` field, already fixed via #186 merge artifact cleanup commit `9c6c53a`. The 6 local-only commits before sync were 4 prior merge-from-develop commits + 1 `fix(#133,#139)` (already squash-merged to develop as PR #172 commit `7ef576c`) + 1 contributor doc plan — all safe to lose semantically. `npm run compile` clean post-resolve (0 errors, 8 pre-existing curly-after-if warnings).
