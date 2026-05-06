@@ -3,10 +3,10 @@
 ## Current
 
 - **Role:** BE
-- **Branch:** `develop` (no active branch yet — starting bug investigation)
-- **Working on:** Bug clearing — investigating assigned issues #120, #112, #28 in order
+- **Branch:** `ethanmiller-fix-wave-201`
+- **Working on:** Issue #201 — wave notification click fires error toast. Fixing 3 FE failure modes (wave_id fallback, narrow 4xx catch, silent no-op on null sender). Apple-only user case deprioritized — Apple Sign-in being hidden separately.
 - **Blockers:** None
-- **Last updated:** 2026-04-17
+- **Last updated:** 2026-05-06
 
 ## Today's Plan (2026-04-17)
 
@@ -296,3 +296,17 @@ Two bugs in `sendMessage`'s @mention path were silently dropping notifications.
 <!-- ### YYYY-MM-DD -->
 
 <!-- Add next session's work log here -->
+
+### 2026-05-06
+
+**#201 — Wave notification click fires error toast (extension)**
+
+Issue reported by `norwayiscoming`: clicking a wave notification surfaces `"Couldn't open wave reply. Please try again."` instead of opening DM. Reporter's primary hypothesis was Apple-only iOS users (no GitHub login) failing the `createConversation` fallback. After discussion, deprioritized that path — Apple Sign-in is being hidden separately, existing Apple-only accounts will degrade gracefully (no fix needed). Three secondary failure modes remain regardless of identity provider.
+
+**Fix scope** (FE only — `media/webview/notifications-pane.js`, `src/webviews/explore.ts`):
+
+- **Fix B — `wave_id` fallback**: removed `|| notif.id` fallback in webview. When `metadata.wave_id` is missing, host now skips `waveRespond` entirely and goes straight to `createConversation`, instead of POSTing `/waves/{notif_uuid}/respond` which always 404s.
+- **Fix C — narrow 4xx catch widened**: `waveRespond` fallback now triggers on any 4xx (`status >= 400 && status < 500`). 5xx and network errors still propagate to the outer toast (real server failure, user retries).
+- **Fix D — silent no-op when sender is null**: webview now always posts `notifications:waveRespond`. Host validates `sender_login` early — if missing, marks the notification read and shows an explicit `"This wave notification is missing sender info."` toast instead of silently doing nothing.
+
+Branch: `ethanmiller-fix-wave-201`. Local commits only — push pending user approval.

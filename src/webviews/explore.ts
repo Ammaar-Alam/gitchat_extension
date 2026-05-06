@@ -1488,23 +1488,35 @@ export class ExploreWebviewProvider implements vscode.WebviewViewProvider {
 
       case "notifications:waveRespond": {
         const { wave_id, sender_login, notif_id } = msg.payload as {
-          wave_id: string; sender_login: string; notif_id: string;
+          wave_id?: string; sender_login?: string; notif_id?: string;
         };
+        if (!sender_login) {
+          if (notif_id) { await notificationStore.markRead([notif_id]); this.refreshNotifications(); }
+          vscode.window.showErrorMessage("This wave notification is missing sender info.");
+          break;
+        }
         try {
           let conversationId = "";
-          try {
-            const result = await apiClient.waveRespond(wave_id);
-            conversationId = result.conversation_id;
-          } catch (err) {
-            // Fallback: BE missing /waves/:id/respond → create conversation directly.
-            const status = (err as { response?: { status?: number } })?.response?.status;
-            if (status === 404 || status === 405) {
-              log(`[wave] waveRespond unavailable, falling back to createConversation`);
-              const conv = await apiClient.createConversation(sender_login);
-              conversationId = conv.id;
-            } else {
-              throw err;
+          if (wave_id) {
+            try {
+              const result = await apiClient.waveRespond(wave_id);
+              conversationId = result.conversation_id;
+            } catch (err) {
+              // Any 4xx from waveRespond → fall back to direct conversation create.
+              // 5xx and network errors propagate to outer catch (real server failure).
+              const status = (err as { response?: { status?: number } })?.response?.status;
+              if (typeof status === "number" && status >= 400 && status < 500) {
+                log(`[wave] waveRespond returned ${status}, falling back to createConversation`);
+                const conv = await apiClient.createConversation(sender_login);
+                conversationId = conv.id;
+              } else {
+                throw err;
+              }
             }
+          } else {
+            log(`[wave] no wave_id on notification, creating conversation directly`);
+            const conv = await apiClient.createConversation(sender_login);
+            conversationId = conv.id;
           }
           if (notif_id) { await notificationStore.markRead([notif_id]); this.refreshNotifications(); }
           if (conversationId) {
