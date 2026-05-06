@@ -17,6 +17,9 @@
   <a href="https://opensource.org/licenses/MIT">
     <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="MIT License">
   </a>
+  <a href="https://apps.apple.com/app/gitchat/id6762181976">
+    <img src="https://img.shields.io/badge/App%20Store-iPhone%20%26%20Mac-007AFF?style=for-the-badge&logo=apple&logoColor=white" alt="App Store - iPhone & Mac">
+  </a>
 </p>
 
 <p align="center">
@@ -49,10 +52,6 @@ GitChat is a free, open-source IDE extension that brings real-time developer cha
 
 ---
 
-<!-- TODO: Add hero-demo.gif (700px wide, <5MB) -->
-
----
-
 ## Quick Install - Chat With GitHub Developers in Seconds
 
 Open VS Code, Cursor, Windsurf, or Antigravity. Press `Ctrl+P` (`Cmd+P` on Mac) and paste:
@@ -65,6 +64,7 @@ Works with VS Code, Cursor, Windsurf, Antigravity, and all VS Code-compatible ID
 
 - [Install from VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=GitchatSH.gitchat)
 - [Install from Open VSX Registry](https://open-vsx.org/extension/Gitchat/gitchat)
+- [Get GitChat on iPhone and Mac — App Store ↗](https://apps.apple.com/app/gitchat/id6762181976)
 
 ---
 
@@ -78,9 +78,9 @@ Works with VS Code, Cursor, Windsurf, Antigravity, and all VS Code-compatible ID
       <p>Message any developer you follow on GitHub. Create group chats with mutual friends. Reactions, typing indicators, read receipts - the full messaging experience, inside your editor.</p>
     </td>
     <td width="50%" valign="top">
-      <h3>Friends and Presence</h3>
-      <img src="https://raw.githubusercontent.com/GitchatSH/brand-assets/main/gitchat-extension/screenshots/feature-friends.png" alt="GitChat Friends and Presence - see who is online and coding right now" width="400">
-      <p>Your GitHub mutual follows become your friends list automatically. See who's coding right now. No manual setup, no invites - your network is already there.</p>
+      <h3>Topics</h3>
+      <img src="https://raw.githubusercontent.com/GitchatSH/brand-assets/main/gitchat-extension/screenshots/feature-topics.png" alt="GitChat Topics - thread your team chat into General, Bug Report, Idea, and custom topics" width="400">
+      <p>Your team chat, organized. Spin up a topic for every project, bug, or idea. No noise, no scroll-back archaeology.</p>
     </td>
   </tr>
   <tr>
@@ -106,7 +106,7 @@ Works with VS Code, Cursor, Windsurf, Antigravity, and all VS Code-compatible ID
 | Lives inside your IDE | **Yes** | No - alt-tab | Partial |
 | Uses your GitHub identity | **Yes** | New account required | Yes |
 | Friends list = GitHub follows | **Yes** | Manual setup | No |
-| Repo community channels | **Coming soon** | No | No |
+| Repo community channels | **Yes** | No | No |
 | Works on Cursor, Windsurf, Antigravity | **Yes** | N/A | VS Code only |
 
 ---
@@ -118,9 +118,10 @@ Works with VS Code, Cursor, Windsurf, Antigravity, and all VS Code-compatible ID
 | **Live** | DM and Group Chat | Message anyone. Create groups with mutual friends. |
 | **Live** | Friends and Presence | See who's online. Chat instantly. |
 | **Live** | Developer Profiles | GitHub stats, top repos, bio - all in one card. |
-| **Soon** | Community Channels | Star a repo and join its community. |
-| **Soon** | Team Channels | Contribute to a repo and join the team chat. |
-| **Soon** | Wave / Say Hi | Ping someone online with one tap. |
+| **Live** | Topics | Thread group chat into focused topics — one per project, bug, or idea. |
+| **Live** | Community Channels | Star a repo and join its community. |
+| **Live** | Wave / Say Hi | Ping someone online with one tap. |
+| **Live** | Team Channels | Contribute to a repo and join the team chat. |
 
 ---
 
