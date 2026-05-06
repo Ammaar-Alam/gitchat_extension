@@ -237,7 +237,7 @@ class ApiClient {
     return data.data ?? data;
   }
 
-  async uploadAttachment(conversationId: string, fileBuffer: Buffer, filename: string, mimeType: string): Promise<{ url: string; storage_path: string; filename: string; mime_type: string; size_bytes: number }> {
+  async uploadAttachment(conversationId: string, fileBuffer: Buffer, filename: string, mimeType: string): Promise<{ url: string; storage_path: string; filename: string; mime_type: string; size_bytes: number; is_video?: boolean }> {
     const FormData = (await import("form-data")).default;
     const form = new FormData();
     form.append("file", fileBuffer, { filename, contentType: mimeType });

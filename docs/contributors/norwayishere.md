@@ -4,7 +4,7 @@
 
 - **Role:** PO
 - **Branch:** feat/video
-- **Task:** Implementing video message rendering and inline player — video bubble UI, openVideoPlayer modal, isVideoAttach/isVideoFile helpers, upload flow fix in explore.ts, video preview in attach modal.
+- **Task:** Fixed optimistic video bubble — tempMsg now includes readyAttachments so sender sees the video poster + play button immediately after sending, without waiting for server echo. Updated uploadAttachment return type to expose is_video flag.
 - **Blockers:** None
 - **Last updated:** 2026-05-06
 

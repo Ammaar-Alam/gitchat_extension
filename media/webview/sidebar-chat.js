@@ -1640,6 +1640,9 @@
           tempMsg.reply_to_id = replyCtx.id;
           tempMsg.reply = { sender_login: replyCtx.sender, body: replyCtx.text };
         }
+        if (isFirst && readyAttachments.length > 0) {
+          tempMsg.attachments = readyAttachments.map(function(a) { return a.result; });
+        }
         container.insertAdjacentHTML('beforeend', renderMessage(tempMsg));
         hideNonLastTicks();
         var newTempRow = container.lastElementChild;
