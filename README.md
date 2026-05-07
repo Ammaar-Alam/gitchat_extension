@@ -212,6 +212,13 @@ Yes. If you follow someone on GitHub and they follow you back, GitChat adds them
 
 </details>
 
+<details>
+<summary>How are messages encrypted?</summary>
+
+Messages are encrypted in transit over HTTPS. GitChat uses a server-relayed model similar to Slack, Discord, and Telegram cloud chats. Not end-to-end encrypted.
+
+</details>
+
 ## Star History
 
 <a href="https://www.star-history.com/#GitchatSH/gitchat_extension&Date">
