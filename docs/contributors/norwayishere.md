@@ -3,8 +3,8 @@
 ## Current
 
 - **Role:** PO
-- **Branch:** norwayiscoming-fix-forward-thumbnail
-- **Task:** Fix video forward thumbnail loss — extension now calls POST /messages/:id/forward (server-side) instead of sendMessage(text only); backend forwardMessage() now copies thumbnail_url + duration_seconds into cloned attachment rows.
+- **Branch:** feat/video
+- **Task:** Fix video player CSP (add media-src/connect-src), fix keydown handler leak on overlay close. All test plan items verified — merging feat/video to develop.
 - **Blockers:** None
 - **Last updated:** 2026-05-08
 

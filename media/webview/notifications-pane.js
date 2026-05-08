@@ -251,15 +251,12 @@
       }
 
       if (notif && notif.type === "wave") {
-        var waveId = (notif.metadata && notif.metadata.wave_id) || notif.id;
-        var sender = notif.actor_login;
-        if (sender) {
-          vscodeApi.postMessage({
-            type: "notifications:waveRespond",
-            payload: { wave_id: waveId, sender_login: sender, notif_id: id }
-          });
-          return;
-        }
+        var waveId = notif.metadata && notif.metadata.wave_id;
+        vscodeApi.postMessage({
+          type: "notifications:waveRespond",
+          payload: { wave_id: waveId, sender_login: notif.actor_login, notif_id: id }
+        });
+        return;
       }
 
       vscodeApi.postMessage({ type: "notificationClicked", payload: { id: id } });

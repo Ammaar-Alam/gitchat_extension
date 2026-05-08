@@ -3,10 +3,10 @@
 ## Current
 
 - **Role:** BE
-- **Branch:** `develop` (no active branch yet — starting bug investigation)
-- **Working on:** Bug clearing — investigating assigned issues #120, #112, #28 in order
-- **Blockers:** None
-- **Last updated:** 2026-04-17
+- **Branch:** `ethanmiller-reply-thumbnail`
+- **Working on:** Issue #222 — reply preview now shows a thumbnail beside the snippet when the replied-to message carries an image attachment, with a "Photo" fallback when the target is image-only. Inline quote consumes the new `msg.reply.first_image_url` field served by `gitchat-webapp` PR #78; composer bar derives the url client-side from `_state.messages` via a new `getFirstImageUrlFromMsg` helper.
+- **Blockers:** Backend PR #78 must reach `api-dev` before E2E parity holds (extension degrades cleanly to no-thumbnail until then).
+- **Last updated:** 2026-05-08
 
 ## Today's Plan (2026-04-17)
 
@@ -296,3 +296,44 @@ Two bugs in `sendMessage`'s @mention path were silently dropping notifications.
 <!-- ### YYYY-MM-DD -->
 
 <!-- Add next session's work log here -->
+
+### 2026-05-06
+
+**#201 — Wave notification click fires error toast (extension)**
+
+Issue reported by `norwayiscoming`: clicking a wave notification surfaces `"Couldn't open wave reply. Please try again."` instead of opening DM. Reporter's primary hypothesis was Apple-only iOS users (no GitHub login) failing the `createConversation` fallback. After discussion, deprioritized that path — Apple Sign-in is being hidden separately, existing Apple-only accounts will degrade gracefully (no fix needed). Three secondary failure modes remain regardless of identity provider.
+
+**Fix scope** (FE only — `media/webview/notifications-pane.js`, `src/webviews/explore.ts`):
+
+- **Fix B — `wave_id` fallback**: removed `|| notif.id` fallback in webview. When `metadata.wave_id` is missing, host now skips `waveRespond` entirely and goes straight to `createConversation`, instead of POSTing `/waves/{notif_uuid}/respond` which always 404s.
+- **Fix C — narrow 4xx catch widened**: `waveRespond` fallback now triggers on any 4xx (`status >= 400 && status < 500`). 5xx and network errors still propagate to the outer toast (real server failure, user retries).
+- **Fix D — silent no-op when sender is null**: webview now always posts `notifications:waveRespond`. Host validates `sender_login` early — if missing, marks the notification read and shows an explicit `"This wave notification is missing sender info."` toast instead of silently doing nothing.
+
+Branch: `ethanmiller-fix-wave-201`. Local commits only — push pending user approval.
+
+---
+
+### 2026-05-08
+
+**#210 — Forwarded attachments silently dropped (extension)**
+
+Auto-generated git-watcher issue tracking webapp PR #71 (which fixed `forwardMessage` to carry binary attachments into forwarded messages). The extension implemented forward entirely client-side, bypassing the backend forward endpoint, so the upstream fix had no effect — and the behaviour was diverging from iOS native (PR #96) and the web app, which both call the backend route.
+
+**Phase 1 / Phase 2 finding (issue #210 missed one layer):** The extension's webview ALSO has a hand-rolled "Forwarded" badge parser at `media/webview/sidebar-chat.js:812` that only recognises the legacy client-stamped prefix (`↪ Forwarded[…]\n`). The backend stamps a different prefix (`> Forwarded from @login\n\n…`) plus a chain-collapse rule for re-forwards. Without updating the parser, switching the handler alone would silently break the badge AND show the literal `> Forwarded from @login` line in the displayed body for every freshly forwarded message.
+
+**Fix scope (single PR):**
+
+- **`src/api/index.ts`**: added `forwardMessage(messageId, conversationIds)` wrapper for `POST /messages/:id/forward`.
+- **`src/webviews/chat-handlers.ts`**: replaced per-target `sendMessage` loop with a single call to the new wrapper. Removed the client-faked `↪ Forwarded\n` header and the `text`/`fromSender` fields from the payload — the server now stamps the body and carries attachments.
+- **`media/webview/sidebar-chat.js`**: dropped `text`/`fromSender` from the modal payload and the `dataset.msgText` retry path. Extended the badge regex to recognise both the new server format and the legacy `↪` format so older messages still render correctly.
+- **`src/test/suite/forward.test.ts`** (new): 10 unit tests covering both prefix formats, hyphenated logins, empty bodies, legacy-nested-in-server chain forwards, and the non-forwarded fallthrough.
+
+**Verification:** `npm run compile` clean (0 errors); `npm test` 77 passing including 10 new tests. End-to-end attachment carry not yet tested in a sideloaded extension — relies on the backend route, which already has webapp/iOS coverage.
+
+**Follow-up after manual sideload (still PR #221, branch `ethan-forward-attachments`):** attachments came through correctly, but the badge rendered just "Forwarded" with no sender — iOS shows "Forwarded from @user". The webview parser was discarding the captured login. Updated the regex to capture the login (both server `>` and legacy `↪` formats), and the badge HTML now renders `Forwarded from <span class="gs-sc-forwarded-from">@login</span>` when the sender is present, falling back to plain "Forwarded" only for the legacy no-sender variant. Click-to-DM on the sender name is still out of scope (iOS doesn't have it either yet).
+
+**Second sideload pass:** replying to a forwarded message rendered the raw `> Forwarded from @login` line as the quoted snippet (and also in the reply composer bar above the input) because both reply-preview paths just sliced 80 chars off the original body without stripping the forward prefix. Hoisted the parser into a top-level `parseForwardedPrefix(text)` helper near `replaceEmojiShortcodes` and reused it from three call sites: the bubble badge, the inline reply quote (`gs-sc-reply-quote`), and the composer bar (`gs-sc-reply-bar`). Existing tests already cover the `body` field returned by the helper, so no new test cases were needed for this refactor.
+
+**Out-of-scope note:** the backend service still iterates `for…await` per-target without per-target error reporting (`gitchat-webapp/backend/src/modules/messages/services/messages.service.ts:1668-1681`), so a partial-failure partway through still surfaces as one generic error. The extension now inherits that behaviour from webapp/iOS — not changed in this PR.
+
+Branch: `ethan-forward-attachments`.
