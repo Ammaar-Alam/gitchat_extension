@@ -307,6 +307,30 @@ export async function handleChatMessage(
       return true;
     }
 
+    // Smart-route from a tap on the "Forwarded from @login" sender label.
+    // Three cases:
+    //   1. Already inside the DM with this login → openConversation would
+    //      redirect to the same screen (visible no-op). Show the profile
+    //      sheet instead so the tap always produces feedback.
+    //   2. Existing DM with this login (different conversation) → delegate
+    //      to gitchat.messageUser (it does findDmConversationIdByLogin →
+    //      navigateToChat).
+    //   3. No prior DM → gitchat.messageUser opens the draft-chat path.
+    // See media/webview/sidebar-chat.js:bindForwardedFromTriggers for the
+    // webview side.
+    case "messageUser": {
+      const login = (msg.payload as Record<string, string>)?.login;
+      if (!login) { return true; }
+      const { exploreWebviewProvider } = await import("./explore");
+      const existingConvId = exploreWebviewProvider?.findDmConversationIdByLogin(login);
+      if (existingConvId && existingConvId === ctx.conversationId) {
+        vscode.commands.executeCommand("gitchat.viewProfile", login);
+      } else {
+        vscode.commands.executeCommand("gitchat.messageUser", login);
+      }
+      return true;
+    }
+
     // ── Group management ──────────────────────────────────────────────
     case "getMembers": {
       try {

@@ -861,7 +861,7 @@
     if (fwdParsed.matched) {
       text = fwdParsed.body;
       var fwdLabel = fwdParsed.sender
-        ? 'Forwarded from <span class="gs-sc-forwarded-from">@' + escapeHtml(fwdParsed.sender) + '</span>'
+        ? 'Forwarded from <span class="gs-sc-forwarded-from" data-login="' + escapeHtml(fwdParsed.sender) + '">@' + escapeHtml(fwdParsed.sender) + '</span>'
         : 'Forwarded';
       forwardedHtml = '<div class="gs-sc-forwarded"><i class="codicon codicon-export"></i> ' + fwdLabel + '</div>';
     }
@@ -989,6 +989,29 @@
     container.querySelectorAll('.gs-sc-mention[data-login]').forEach(function (el) {
       var login = el.getAttribute('data-login');
       if (login) window.ProfileCard.bindTrigger(el, login);
+    });
+  }
+
+  // Bind navigation handler on the "Forwarded from @<login>" badge label so a
+  // tap jumps to the smart-routed user chat (existing DM if any, else draft
+  // chat) — matches Telegram's tap-on-original-sender affordance. Distinct
+  // from `bindProfileCardTriggers` because the action navigates instead of
+  // showing the hover popover.
+  function bindForwardedFromTriggers(container) {
+    if (!container) return;
+    container.querySelectorAll('.gs-sc-forwarded-from[data-login]').forEach(function (el) {
+      if (el.dataset.fwdBound === '1') return; // Idempotent across re-renders
+      var login = el.getAttribute('data-login');
+      if (!login) return;
+      el.dataset.fwdBound = '1';
+      el.addEventListener('click', function (e) {
+        e.stopPropagation();
+        if (login === _state.currentUser) return; // No-op on self
+        // `chat:` prefix is required — explore.ts:1050 routes only
+        // chat:* messages into handleChatMessage; the prefix is stripped
+        // before the switch so chat-handlers.ts matches `case "messageUser":`.
+        doAction('chat:messageUser', { login: login });
+      });
     });
   }
 
@@ -1150,6 +1173,7 @@
         container.innerHTML = html;
         container.classList.add('gs-sc-msgs-fadein');
         bindProfileCardTriggers(container);
+        bindForwardedFromTriggers(container);
         attachScrollListener();
         refreshSeenAvatars();
         updateGroupSeenStatus();
@@ -1176,6 +1200,7 @@
 
     container.innerHTML = html;
     bindProfileCardTriggers(container);
+    bindForwardedFromTriggers(container);
     attachScrollListener();
     refreshSeenAvatars();
     updateGroupSeenStatus();
@@ -1261,6 +1286,7 @@
       });
     }
     bindProfileCardTriggers(container);
+    bindForwardedFromTriggers(container);
     refreshSeenAvatars();
     updateGroupSeenStatus();
     hideNonLastTicks();
@@ -4814,6 +4840,7 @@
         if (html) {
           container.insertAdjacentHTML('afterbegin', html);
           bindProfileCardTriggers(container);
+          bindForwardedFromTriggers(container);
           hideNonLastTicks();
         }
 
@@ -4846,6 +4873,7 @@
         if (html) {
           container.insertAdjacentHTML('beforeend', html);
           bindProfileCardTriggers(container);
+          bindForwardedFromTriggers(container);
           hideNonLastTicks();
         }
 

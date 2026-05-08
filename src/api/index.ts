@@ -237,10 +237,6 @@ class ApiClient {
     return data.data ?? data;
   }
 
-  async forwardMessage(messageId: string, conversationIds: string[]): Promise<void> {
-    await this._http.post(`/messages/${messageId}/forward`, { conversation_ids: conversationIds });
-  }
-
   async uploadAttachment(conversationId: string, fileBuffer: Buffer, filename: string, mimeType: string): Promise<{ url: string; storage_path: string; filename: string; mime_type: string; size_bytes: number; is_video?: boolean; type?: string }> {
     const FormData = (await import("form-data")).default;
     const form = new FormData();

@@ -3,9 +3,9 @@
 ## Current
 
 - **Role:** BE
-- **Branch:** `ethanmiller-reply-thumbnail`
-- **Working on:** Issue #222 — reply preview now shows a thumbnail beside the snippet when the replied-to message carries an image attachment, with a "Photo" fallback when the target is image-only. Inline quote consumes the new `msg.reply.first_image_url` field served by `gitchat-webapp` PR #78; composer bar derives the url client-side from `_state.messages` via a new `getFirstImageUrlFromMsg` helper.
-- **Blockers:** Backend PR #78 must reach `api-dev` before E2E parity holds (extension degrades cleanly to no-thumbnail until then).
+- **Branch:** `ethanmiller-tap-forward-sender`
+- **Working on:** Issue #227 — tap on `@<login>` inside the "Forwarded from …" badge now smart-routes via the existing `gitchat.messageUser` command (existing DM → open it, no prior DM → draft chat). Pure UI/wiring change: `data-login` on the forwarded-from span, a new `bindForwardedFromTriggers` binder distinct from `bindProfileCardTriggers`, plus a `messageUser` message-type relay in `chat-handlers.ts`. Follow-up commits: current-route guard (resolved DM == current → viewProfile fallthrough), `chat:` prefix fix on the doAction call (explore.ts:1050 only routes chat:* messages into handleChatMessage), and a cherry-pick of the duplicate `forwardMessage` typecheck fix from PR #229 so this branch self-contains its compile prerequisites — without it the host's `dist/extension.js` doesn't rebuild and the new `case "messageUser"` handler never reaches the running extension, so the click silently drops at the host router.
+- **Blockers:** None. Same typecheck fix lives standalone in PR #229; whichever PR lands first, the other becomes a no-op merge.
 - **Last updated:** 2026-05-08
 
 ## Today's Plan (2026-04-17)

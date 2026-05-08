@@ -449,6 +449,16 @@
   color: color-mix(in srgb, var(--gs-button-fg) 80%, transparent);
 }
 
+.gs-sc-forwarded-from[data-login] {
+  cursor: pointer;
+  font-style: normal;
+  font-weight: 600;
+}
+
+.gs-sc-forwarded-from[data-login]:hover {
+  text-decoration: underline;
+}
+
 /* ── Meta (timestamp + status) ── */
 .gs-sc-meta {
   font-size: 10px;
