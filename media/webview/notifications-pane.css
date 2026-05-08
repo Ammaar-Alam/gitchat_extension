@@ -136,11 +136,26 @@ body.noti-active #gs-search-bar { display: none !important; }
 .notif-p-item-title strong { font-weight: 600; }
 
 .notif-p-item-preview {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
   font-size: var(--gs-font-xs);
   color: var(--gs-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+}
+
+.notif-p-preview-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.notif-p-preview-icon {
+  font-size: var(--gs-font-sm);
+  opacity: 0.7;
+  flex-shrink: 0;
 }
 
 /* Right column: time + unread dot */

@@ -2090,6 +2090,7 @@ export class ExploreWebviewProvider implements vscode.WebviewViewProvider {
     const profileCardJs = getUri(webview, this.extensionUri, ["media", "webview", "profile-card.js"]);
     const topicListJs = getUri(webview, this.extensionUri, ["media", "webview", "topic-list.js"]);
     const chatJs = getUri(webview, this.extensionUri, ["media", "webview", "sidebar-chat.js"]);
+    const messagePreviewJs = getUri(webview, this.extensionUri, ["media", "webview", "messagePreview.js"]);
     const js = getUri(webview, this.extensionUri, ["media", "webview", "explore.js"]);
     const notifJs = getUri(webview, this.extensionUri, ["media", "webview", "notifications-pane.js"]);
     const toastStackJsUri = getUri(webview, this.extensionUri, ["media", "webview", "toast-stack.js"]);
@@ -2267,6 +2268,7 @@ export class ExploreWebviewProvider implements vscode.WebviewViewProvider {
 <script nonce="${nonce}" src="${profileCardJs}"></script>
 <script nonce="${nonce}" src="${topicListJs}"></script>
 <script nonce="${nonce}" src="${chatJs}"></script>
+<script nonce="${nonce}" src="${messagePreviewJs}"></script>
 <script nonce="${nonce}" src="${js}"></script>
 <script nonce="${nonce}" src="${notifJs}"></script>
 <script nonce="${nonce}" src="${toastStackJsUri}"></script>

@@ -1794,7 +1794,6 @@ function renderChatConversation(c) {
     avatar = other.avatar_url || avatarUrl(other.login || "");
     subtitle = "";
   }
-  var preview = c.last_message_preview || c.last_message_text || (c.last_message && (c.last_message.body || c.last_message.content)) || "";
   var draft = chatDrafts[c.id] || "";
   var time = timeAgo(c.last_message_at || c.updated_at);
   // For topic conversations, sum unread across all topics
@@ -1827,9 +1826,40 @@ function renderChatConversation(c) {
   var unreadText = totalUnread > 99 ? '99+' : String(totalUnread);
   var unreadBadge = (unread && !hasIndicators) ? '<span class="' + badgeClass + '">' + unreadText + '</span>' : '';
   var mutedIcon = c.is_muted ? '<span class="gs-text-xs" title="Muted"><span class="codicon codicon-bell-slash"></span></span>' : '';
-  var previewHtml = draft
-    ? '<div class="conv-preview gs-text-sm gs-truncate"><span class="draft-label">Draft:</span> ' + escapeHtml(draft.slice(0, 60)) + '</div>'
-    : '<div class="conv-preview gs-text-sm gs-text-muted gs-truncate">' + escapeHtml(preview.slice(0, 80)) + '</div>';
+  var previewHtml;
+  if (draft) {
+    previewHtml = '<div class="conv-preview gs-text-sm gs-truncate"><span class="draft-label">Draft:</span> ' + escapeHtml(draft.slice(0, 60)) + '</div>';
+  } else {
+    var previewMsg = c.last_message || { body: c.last_message_preview || c.last_message_text || "" };
+    var formatted = window.gsMessagePreview(previewMsg, {
+      isGroup: isGroup,
+      senderLogin: (c.last_message && c.last_message.sender_login) || null,
+    });
+
+    var iconHtml = "";
+    switch (formatted.attachmentType) {
+      case "image": iconHtml = '<span class="codicon codicon-device-camera conv-preview-icon"></span>'; break;
+      case "video": iconHtml = '<span class="codicon codicon-device-camera-video conv-preview-icon"></span>'; break;
+      case "gif":   iconHtml = '<span class="codicon codicon-file-media conv-preview-icon"></span>'; break;
+      case "voice": iconHtml = '<span class="codicon codicon-mic conv-preview-icon"></span>'; break;
+      case "file":  iconHtml = '<span class="codicon codicon-file conv-preview-icon"></span>'; break;
+    }
+
+    var thumbHtml = formatted.thumbUrl
+      ? '<img class="conv-preview-thumb" src="' + escapeHtml(formatted.thumbUrl) + '" alt="">'
+      : '';
+
+    // When the thumbnail is shown, the media-type codicon is redundant
+    var effectiveIconHtml = thumbHtml ? '' : iconHtml;
+
+    previewHtml = '<div class="conv-preview gs-text-sm gs-text-muted gs-truncate">'
+      + thumbHtml
+      + effectiveIconHtml
+      + '<span class="gs-truncate" style="min-width:0">'
+      + escapeHtml(formatted.text.slice(0, 80))
+      + '</span>'
+      + '</div>';
+  }
 
   // Avatar HTML — DM gets online dot wrapper, group/community/team gets square shape
   var avatarHtml;

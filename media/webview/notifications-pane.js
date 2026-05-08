@@ -48,11 +48,39 @@
     var actorTag = '<strong>' + escapeHtml(actor) + '</strong>';
     switch (notif.type) {
       case "mention":
-        return { html: actorTag + " mentioned you", preview: meta.preview || "" };
+      case "new_message": {
+        // meta may be either:
+        //   - legacy: { preview: "Some text" } (string)
+        //   - structured: { text, attachment, forwardedFromOriginalAuthor, isGroup, senderLogin }
+        // gsMessagePreview parses both shapes (via body/content/preview field fallback).
+        var msg = (typeof meta.preview === 'string')
+          ? {
+              body: meta.preview,
+              attachments: Array.isArray(meta.attachments)
+                ? meta.attachments
+                : (meta.attachment ? [meta.attachment] : []),
+              forwarded_from_original_author: meta.forwardedFromOriginalAuthor || null,
+            }
+          : {
+              body: meta.text || "",
+              attachments: Array.isArray(meta.attachments)
+                ? meta.attachments
+                : (meta.attachment ? [meta.attachment] : []),
+              forwarded_from_original_author: meta.forwardedFromOriginalAuthor || null,
+            };
+        // Note: meta.isGroup must be set by the backend. Unlike the chat-list, we have
+        // no participants array here, so the participants.length > 2 fallback is absent.
+        var fmt = window.gsMessagePreview(msg, {
+          isGroup: !!meta.isGroup,
+          senderLogin: meta.senderLogin || null,
+        });
+        return {
+          html: actorTag + (notif.type === "mention" ? " mentioned you" : " sent a message"),
+          preview: fmt,
+        };
+      }
       case "wave":
         return { html: actorTag + " waved at you", preview: "" };
-      case "new_message":
-        return { html: actorTag + " sent a message", preview: meta.preview || "" };
       case "follow":
         return { html: actorTag + " started following you", preview: "" };
       case "repo_activity": {
@@ -110,7 +138,41 @@
         '</div>' +
         '<div class="notif-p-item-body">' +
           '<div class="notif-p-item-title">' + d.html + '</div>' +
-          (d.preview ? '<div class="notif-p-item-preview">' + escapeHtml(d.preview) + '</div>' : '') +
+          (function previewBlock() {
+            var p = d.preview;
+            // Plain-string preview (legacy/non-message notifications)
+            if (typeof p === 'string') {
+              return p
+                ? '<div class="notif-p-item-preview"><span class="gs-truncate" style="min-width:0">'
+                  + escapeHtml(p)
+                  + '</span></div>'
+                : '';
+            }
+            if (!p || !p.text) { return ''; }
+
+            var iconHtml = '';
+            switch (p.attachmentType) {
+              case 'image': iconHtml = '<span class="codicon codicon-device-camera notif-p-preview-icon"></span>'; break;
+              case 'video': iconHtml = '<span class="codicon codicon-device-camera-video notif-p-preview-icon"></span>'; break;
+              case 'gif':   iconHtml = '<span class="codicon codicon-file-media notif-p-preview-icon"></span>'; break;
+              case 'voice': iconHtml = '<span class="codicon codicon-mic notif-p-preview-icon"></span>'; break;
+              case 'file':  iconHtml = '<span class="codicon codicon-file notif-p-preview-icon"></span>'; break;
+            }
+
+            var thumbHtml = p.thumbUrl
+              ? '<img class="notif-p-preview-thumb" src="' + escapeHtml(p.thumbUrl) + '" alt="">'
+              : '';
+            // When thumbnail is shown, the codicon is redundant (Task 3 fix).
+            var effectiveIconHtml = thumbHtml ? '' : iconHtml;
+
+            return '<div class="notif-p-item-preview">'
+              + thumbHtml
+              + effectiveIconHtml
+              + '<span class="gs-truncate" style="min-width:0">'
+              + escapeHtml(p.text)
+              + '</span>'
+              + '</div>';
+          })() +
         '</div>' +
         '<div class="notif-p-item-tail">' +
           '<span class="notif-p-item-time">' + escapeHtml(fmtTimeAgo(n.created_at)) + '</span>' +
