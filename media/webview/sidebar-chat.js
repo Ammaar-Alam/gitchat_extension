@@ -131,6 +131,23 @@
     return { matched: true, sender: match[1] || null, body: text.slice(match[0].length) };
   }
 
+  // Pick the first image attachment of a message — used to thumbnail-decorate
+  // the reply composer bar when the user clicks Reply on an image-only message.
+  // The inline reply quote already has BE-supplied `msg.reply.first_image_url`,
+  // but the composer bar fires off the local message object so it derives the
+  // url from the same attachment list the bubble grid renders from.
+  function getFirstImageUrlFromMsg(msg) {
+    if (!msg || !msg.attachments) return null;
+    for (var i = 0; i < msg.attachments.length; i++) {
+      var a = msg.attachments[i];
+      var isImg = (a.mime_type && a.mime_type.indexOf('image/') === 0)
+        || a.type === 'image'
+        || a.type === 'gif';
+      if (isImg && a.url) return a.url;
+    }
+    return null;
+  }
+
 
   // ═══════════════════════════════════════════
   // DOM HELPERS
@@ -725,9 +742,21 @@
       var replyRaw = msg.reply.body || msg.reply.content || '';
       var replyText = parseForwardedPrefix(replyRaw).body.slice(0, 80);
       var replySender = msg.reply.sender_login || msg.reply.sender || '';
+      var replyImg = msg.reply.first_image_url || '';
+      // When body is empty but an image is present, show a "Photo" label so
+      // the snippet line isn't blank — matches Telegram / iOS native behaviour.
+      var replyTextHtml = replyText
+        ? escapeHtml(replyText)
+        : (replyImg ? '<span class="gs-sc-reply-text-photo">Photo</span>' : '');
+      var thumbHtml = replyImg
+        ? '<img class="gs-sc-reply-thumb" src="' + escapeHtml(replyImg) + '" alt="" />'
+        : '';
       replyHtml = '<div class="gs-sc-reply-quote" data-reply-id="' + escapeHtml(String(msg.reply_to_id)) + '">' +
-        '<span class="gs-sc-reply-sender">' + escapeHtml(replySender) + '</span>' +
-        '<span class="gs-sc-reply-text">' + escapeHtml(replyText) + '</span>' +
+        thumbHtml +
+        '<div class="gs-sc-reply-quote-body">' +
+          '<span class="gs-sc-reply-sender">' + escapeHtml(replySender) + '</span>' +
+          '<span class="gs-sc-reply-text">' + replyTextHtml + '</span>' +
+        '</div>' +
         '</div>';
     }
 
@@ -1728,16 +1757,25 @@
   // REPLY
   // ═══════════════════════════════════════════
 
-  function setReply(msgId, sender, text) {
-    _state.replyingTo = { id: msgId, sender: sender, text: text };
+  function setReply(msgId, sender, text, imageUrl) {
+    _state.replyingTo = { id: msgId, sender: sender, text: text, imageUrl: imageUrl || null };
     var bar = _els.replyBar;
     if (!bar) return;
 
     var previewText = parseForwardedPrefix(text || '').body.slice(0, 80);
+    var img = imageUrl || '';
+    // Empty-body image reply still needs a snippet line so the bar isn't blank.
+    var previewHtml = previewText
+      ? escapeHtml(previewText)
+      : (img ? '<span class="gs-sc-reply-bar-text-photo">Photo</span>' : '');
+    var thumbHtml = img
+      ? '<img class="gs-sc-reply-thumb gs-sc-reply-thumb-bar" src="' + escapeHtml(img) + '" alt="" />'
+      : '';
     bar.innerHTML =
+      thumbHtml +
       '<div class="gs-sc-reply-bar-content">' +
         '<span class="gs-sc-reply-bar-sender">' + escapeHtml(sender) + '</span>' +
-        '<span class="gs-sc-reply-bar-text">' + escapeHtml(previewText) + '</span>' +
+        '<span class="gs-sc-reply-bar-text">' + previewHtml + '</span>' +
       '</div>' +
       '<button class="gs-sc-reply-bar-close gs-btn-icon"><i class="codicon codicon-close"></i></button>';
     bar.style.display = 'flex';
@@ -2331,7 +2369,8 @@
       if (action === 'react') {
         openEmojiPicker(btn, msgId);
       } else if (action === 'reply') {
-        setReply(msgId, sender, text.slice(0, 100));
+        var replyTarget = (_state.messages || []).find(function (m) { return String(m.id) === String(msgId); });
+        setReply(msgId, sender, text.slice(0, 100), getFirstImageUrlFromMsg(replyTarget));
       } else if (action === 'copy') {
         if (text) {
           navigator.clipboard.writeText(text).then(function () { showToast('Copied', 1500); });

@@ -683,6 +683,9 @@
 
 /* ── Reply quote (inside message) ── */
 .gs-sc-reply-quote {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-size: var(--gs-font-xs);
   padding: 4px 8px;
   margin-bottom: 4px;
@@ -691,6 +694,24 @@
   background: color-mix(in srgb, var(--gs-fg) 5%, transparent);
   border-radius: 0 var(--gs-radius-xs) var(--gs-radius-xs) 0;
   cursor: pointer;
+}
+
+.gs-sc-reply-quote-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.gs-sc-reply-thumb {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--gs-radius-xs);
+  object-fit: cover;
+  display: block;
+}
+
+.gs-sc-reply-text-photo {
+  font-style: italic;
 }
 
 .gs-sc-reply-sender {
@@ -1134,6 +1155,15 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.gs-sc-reply-bar-text-photo {
+  font-style: italic;
+}
+
+.gs-sc-reply-thumb-bar {
+  width: 32px;
+  height: 32px;
 }
 
 .gs-sc-reply-bar-close {

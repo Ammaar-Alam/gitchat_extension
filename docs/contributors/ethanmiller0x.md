@@ -3,9 +3,9 @@
 ## Current
 
 - **Role:** BE
-- **Branch:** `ethan-forward-attachments`
-- **Working on:** Issue #210 — extension's client-side forward dropped attachments because it bypassed `POST /messages/:id/forward`. Routed forwards through the backend, dropped now-unused `text`/`fromSender` from the webview payload, extended the "Forwarded" badge regex so older `↪`-prefixed messages still render correctly alongside the server's new `>` prefix, and surfaced the original sender's `@login` in the badge to match iOS native parity.
-- **Blockers:** None
+- **Branch:** `ethanmiller-reply-thumbnail`
+- **Working on:** Issue #222 — reply preview now shows a thumbnail beside the snippet when the replied-to message carries an image attachment, with a "Photo" fallback when the target is image-only. Inline quote consumes the new `msg.reply.first_image_url` field served by `gitchat-webapp` PR #78; composer bar derives the url client-side from `_state.messages` via a new `getFirstImageUrlFromMsg` helper.
+- **Blockers:** Backend PR #78 must reach `api-dev` before E2E parity holds (extension degrades cleanly to no-thumbnail until then).
 - **Last updated:** 2026-05-08
 
 ## Today's Plan (2026-04-17)
