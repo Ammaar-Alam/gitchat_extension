@@ -582,7 +582,7 @@ export async function handleChatMessage(
       return true;
     }
 
-    // ── Forward ───────────────────────────────────────────────────────
+    // ── Forward ───────────────────────────────────────────────────────────────
     case "forwardMessage": {
       const fp = msg.payload as { messageId: string; targetConversationIds: string[] };
       if (fp?.messageId && fp?.targetConversationIds?.length) {
