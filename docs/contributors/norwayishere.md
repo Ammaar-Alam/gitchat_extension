@@ -3,10 +3,10 @@
 ## Current
 
 - **Role:** PO
-- **Branch:** feat/video
-- **Task:** Full video messaging implementation — video upload size limit raised to 100MB, attachment type field derived on upload, duration_seconds/thumbnail_url wired through all send payloads in extension and webapp.
+- **Branch:** norwayiscoming-fix-forward-thumbnail
+- **Task:** Fix video forward thumbnail loss — extension now calls POST /messages/:id/forward (server-side) instead of sendMessage(text only); backend forwardMessage() now copies thumbnail_url + duration_seconds into cloned attachment rows.
 - **Blockers:** None
-- **Last updated:** 2026-05-06
+- **Last updated:** 2026-05-08
 
 ## Decisions
 
@@ -33,4 +33,5 @@
 - 2026-04-17: Updated CLAUDE.md with team workflow rules (role-based session briefing, announcement system, BE file claim rules, daily plan prompt, push-triggered contributor doc updates). Added ROLE-RULES.md and announcement.md. Updated pre-commit hook to allow PO to edit all contributor docs. Proposed group creation UX change: relax mutual follow gate to one-way follow + email invite for non-GitChat users.
 - 2026-04-23: Released v1.1.6 to Open VSX (publisher gitchat, from main, dev env URLs). Disabled enforce_admins on develop protection so PO can bypass for mechanical resolutions. Created PR #184 (develop → main release) and PR #185 (docs conflict fix). Fixed merge artifact from PR #172 that left duplicate actorLogin + stale latestAvatarUrl test refs blocking tsc.
 - 2026-04-28: Resolved conflicts on PR #187 (develop → main). Released v1.1.7 to Open VSX (publisher gitchat). Opened issue #204 for invite link button bug (created_by ID vs login mismatch), responded to community issues #202 (spam outreach) and #203 (message history race condition).
+- 2026-05-08: Fixed video forward thumbnail bug (issue #223) — extension forwardMessage handler now calls apiClient.forwardMessage() (POST /messages/:id/forward) instead of sendMessage(text only); full attachment data including thumbnail_url now preserved on forward.
 
