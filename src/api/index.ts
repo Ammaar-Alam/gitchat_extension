@@ -398,6 +398,11 @@ class ApiClient {
     await this._http.post(`/messages/${messageId}/unsend`);
   }
 
+  async forwardMessage(messageId: string, conversationIds: string[]): Promise<{ forwarded: number }> {
+    const { data } = await this._http.post(`/messages/${messageId}/forward`, { conversation_ids: conversationIds });
+    return data.data ?? data;
+  }
+
   async replyToMessage(conversationId: string, content: string, replyToId: string, attachments?: { type: string; url: string; storage_path: string; filename?: string; mime_type?: string; size_bytes?: number; duration_seconds?: number; thumbnail_url?: string }[]): Promise<Message> {
     const payload: Record<string, unknown> = { body: content, reply_to_id: replyToId };
     if (attachments?.length) { payload.attachments = attachments; }

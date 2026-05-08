@@ -584,16 +584,11 @@ export async function handleChatMessage(
 
     // ── Forward ───────────────────────────────────────────────────────
     case "forwardMessage": {
-      const fp = msg.payload as { messageId: string; text: string; fromSender?: string; targetConversationIds: string[] };
+      const fp = msg.payload as { messageId: string; targetConversationIds: string[] };
       if (fp?.messageId && fp?.targetConversationIds?.length) {
         try {
-          for (const targetId of fp.targetConversationIds) {
-            try {
-              const fwdHeader = fp.fromSender ? `\u21aa Forwarded from @${fp.fromSender}\n` : "\u21aa Forwarded\n";
-              await apiClient.sendMessage(targetId, fwdHeader + (fp.text || ""));
-            } catch { /* skip failed targets */ }
-          }
-          post(ctx, { type: "forwardSuccess", count: fp.targetConversationIds.length });
+          const result = await apiClient.forwardMessage(fp.messageId, fp.targetConversationIds);
+          post(ctx, { type: "forwardSuccess", count: result?.forwarded ?? fp.targetConversationIds.length });
         } catch {
           post(ctx, { type: "forwardError" });
         }

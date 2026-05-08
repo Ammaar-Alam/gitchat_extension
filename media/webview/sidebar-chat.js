@@ -116,6 +116,21 @@
     return text.replace(_emojiPattern, function (m) { return _emojiShortcodes[m] || m; });
   }
 
+  // Parse the "Forwarded" prefix off a message body. Returns { matched, sender, body }.
+  // Recognises both the server-stamped format ("> Forwarded from @login\n\n…", produced
+  // by POST /messages/:id/forward) and the legacy client-stamped format
+  // ("↪ Forwarded[…]\n…") still present in older messages from prior extension versions.
+  // Used by the message bubble (badge), reply quote preview, and reply composer bar so
+  // none of them leak the raw prefix into the displayed snippet.
+  function parseForwardedPrefix(text) {
+    if (!text) return { matched: false, sender: null, body: text || '' };
+    var serverMatch = text.match(/^> Forwarded from @([A-Za-z0-9](?:[A-Za-z0-9-]{0,38}))(?:\n+|$)/);
+    var legacyMatch = serverMatch ? null : text.match(/^↪ Forwarded(?:\s+from\s+@(\S+))?\n/);
+    var match = serverMatch || legacyMatch;
+    if (!match) return { matched: false, sender: null, body: text };
+    return { matched: true, sender: match[1] || null, body: text.slice(match[0].length) };
+  }
+
 
   // ═══════════════════════════════════════════
   // DOM HELPERS
@@ -703,10 +718,12 @@
       ? '<div class="gs-sc-sender" data-login="' + escapeHtml(sender) + '">@' + escapeHtml(sender) + '</div>'
       : '';
 
-    // Reply/quote block
+    // Reply/quote block — strip any forward prefix off the quoted body so the
+    // snippet doesn't leak the raw "> Forwarded from @login" line as text.
     var replyHtml = '';
     if (msg.reply_to_id && msg.reply) {
-      var replyText = (msg.reply.body || msg.reply.content || '').slice(0, 80);
+      var replyRaw = msg.reply.body || msg.reply.content || '';
+      var replyText = parseForwardedPrefix(replyRaw).body.slice(0, 80);
       var replySender = msg.reply.sender_login || msg.reply.sender || '';
       replyHtml = '<div class="gs-sc-reply-quote" data-reply-id="' + escapeHtml(String(msg.reply_to_id)) + '">' +
         '<span class="gs-sc-reply-sender">' + escapeHtml(replySender) + '</span>' +
@@ -807,12 +824,17 @@
         '</span>';
     }).join('');
 
-    // Forwarded label
+    // Forwarded label \u2014 render "Forwarded from @<login>" badge (matches iOS native
+    // parity) and strip the prefix off the displayed body. See parseForwardedPrefix
+    // for the formats recognised.
     var forwardedHtml = '';
-    var fwdMatch = text.match(/^\u21aa Forwarded(?:\s+from\s+(@\S+))?\n/);
-    if (fwdMatch) {
-      text = text.slice(fwdMatch[0].length);
-      forwardedHtml = '<div class="gs-sc-forwarded"><i class="codicon codicon-export"></i> Forwarded</div>';
+    var fwdParsed = parseForwardedPrefix(text);
+    if (fwdParsed.matched) {
+      text = fwdParsed.body;
+      var fwdLabel = fwdParsed.sender
+        ? 'Forwarded from <span class="gs-sc-forwarded-from">@' + escapeHtml(fwdParsed.sender) + '</span>'
+        : 'Forwarded';
+      forwardedHtml = '<div class="gs-sc-forwarded"><i class="codicon codicon-export"></i> ' + fwdLabel + '</div>';
     }
 
     // Message text — detect emoji-only (1-3 emojis, no other text)
@@ -1711,10 +1733,11 @@
     var bar = _els.replyBar;
     if (!bar) return;
 
+    var previewText = parseForwardedPrefix(text || '').body.slice(0, 80);
     bar.innerHTML =
       '<div class="gs-sc-reply-bar-content">' +
         '<span class="gs-sc-reply-bar-sender">' + escapeHtml(sender) + '</span>' +
-        '<span class="gs-sc-reply-bar-text">' + escapeHtml((text || '').slice(0, 80)) + '</span>' +
+        '<span class="gs-sc-reply-bar-text">' + escapeHtml(previewText) + '</span>' +
       '</div>' +
       '<button class="gs-sc-reply-bar-close gs-btn-icon"><i class="codicon codicon-close"></i></button>';
     bar.style.display = 'flex';
@@ -3734,7 +3757,7 @@
       menu.remove();
 
       if (action === 'seenby') { openSeenByPopup(msgEl); return; }
-      else if (action === 'forward') openForwardModal(msgId, text);
+      else if (action === 'forward') openForwardModal(msgId);
       else if (action === 'pin') doAction('chat:pinMessage', { messageId: msgId });
       else if (action === 'unpin') doAction('chat:unpinMessage', { messageId: msgId });
       else if (action === 'edit') doEditInline(msgId, text, msgEl);
@@ -3852,7 +3875,7 @@
   }
 
   // Forward modal
-  function openForwardModal(msgId, text) {
+  function openForwardModal(msgId) {
     var area = _els.messagesArea;
     if (!area) return;
     var existing = area.querySelector('.gs-sc-forward-overlay');
@@ -3861,7 +3884,6 @@
     var overlay = document.createElement('div');
     overlay.className = 'gs-sc-forward-overlay';
     overlay.dataset.msgId = msgId;
-    overlay.dataset.msgText = text || '';
     var selectedIds = {};
 
     function renderFwdModal() {
@@ -3905,7 +3927,7 @@
         sendBtn.addEventListener('click', function () {
           sendBtn.innerHTML = '<i class="codicon codicon-loading codicon-modifier-spin"></i>';
           sendBtn.disabled = true;
-          doAction('chat:forwardMessage', { messageId: msgId, text: text || '', targetConversationIds: Object.keys(selectedIds) });
+          doAction('chat:forwardMessage', { messageId: msgId, targetConversationIds: Object.keys(selectedIds) });
         });
       }
     }
@@ -5110,9 +5132,8 @@
         var pendingFwd = getContainer() && getContainer().querySelector('.gs-sc-forward-overlay');
         if (pendingFwd && _conversations.length > 0) {
           var fwdMsgId = pendingFwd.dataset.msgId;
-          var fwdText = pendingFwd.dataset.msgText || '';
           pendingFwd.remove();
-          openForwardModal(fwdMsgId, fwdText);
+          openForwardModal(fwdMsgId);
         }
         break;
       }
