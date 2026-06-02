@@ -1664,7 +1664,12 @@
     if (!input) return;
 
     var content = input.value.trim();
+    var hasUploadingAttachments = _state.pendingAttachments.some(function (a) { return a.status === 'uploading'; });
     var hasAttachments = _state.pendingAttachments.some(function (a) { return a.status === 'ready'; });
+    if (hasUploadingAttachments) {
+      showToast('Preparing attachment', 2000);
+      return;
+    }
     if (!content && !hasAttachments) return;
 
     var readyAttachments = _state.pendingAttachments.filter(function (a) { return a.status === 'ready'; });
@@ -1718,7 +1723,17 @@
           tempMsg.reply = { sender_login: replyCtx.sender, body: replyCtx.text };
         }
         if (isFirst && readyAttachments.length > 0) {
-          tempMsg.attachments = readyAttachments.map(function(a) { return a.result; });
+          tempMsg.attachments = readyAttachments.map(function(a) {
+            if (a.result) { return a.result; }
+            var pending = a._pendingUpload || {};
+            var mimeType = pending.mimeType || (a.file && a.file.type) || 'application/octet-stream';
+            return {
+              type: mimeType.indexOf('video/') === 0 ? 'video' : (mimeType.indexOf('image/') === 0 ? 'image' : 'file'),
+              url: getThumbSrc(a),
+              filename: pending.filename || (a.file && a.file.name) || 'attachment',
+              mime_type: mimeType,
+            };
+          }).filter(Boolean);
         }
         container.insertAdjacentHTML('beforeend', renderMessage(tempMsg));
         hideNonLastTicks();
@@ -1737,7 +1752,7 @@
       // Build payload
       var payload = { content: chunkContent, _tempId: tempId };
       if (isFirst && readyAttachments.length > 0) {
-        payload.attachments = readyAttachments.map(function (a) {
+        var uploadedAttachments = readyAttachments.filter(function (a) { return !!a.result; }).map(function (a) {
           var r = a.result;
           if (!r) { return r; }
           if (!r.type) {
@@ -1745,7 +1760,18 @@
             r = Object.assign({}, r, { type: t });
           }
           return r;
+        }).filter(Boolean);
+        if (uploadedAttachments.length > 0) {
+          payload.attachments = uploadedAttachments;
+        }
+        var pendingUploads = readyAttachments.filter(function (a) {
+          return !a.result && a._pendingUpload && a._pendingUpload.data;
+        }).map(function (a) {
+          return a._pendingUpload;
         });
+        if (pendingUploads.length > 0) {
+          payload.pendingUploads = pendingUploads;
+        }
       }
       if (isFirst && lpUrl) {
         payload.linkPreviewUrl = lpUrl;
@@ -3145,11 +3171,17 @@
   function addPickedFile(fileData) {
     if (_state.pendingAttachments.length >= MAX_ATTACHMENTS) return;
     var fakeFile = { name: fileData.filename || fileData.name || 'file', type: fileData.mimeType || '' };
+    var deferredUpload = !!fileData.deferredUpload;
     _state.pendingAttachments.push({
       id: fileData.id || ++_attachIdCounter,
       file: fakeFile,
-      status: 'uploading',
+      status: deferredUpload ? 'ready' : 'uploading',
       result: null,
+      _pendingUpload: deferredUpload ? {
+        data: fileData.data || '',
+        filename: fakeFile.name,
+        mimeType: fakeFile.type || 'application/octet-stream',
+      } : null,
       _dataUri: fileData.dataUri || null,
       _blobUrl: null,
     });
@@ -3173,6 +3205,7 @@
       file: file,
       status: 'uploading',
       result: null,
+      _pendingUpload: null,
       _dataUri: null,
       _blobUrl: null,
     });
@@ -3181,12 +3214,27 @@
     var reader = new FileReader();
     reader.onload = function () {
       var base64 = reader.result.split(',')[1];
-      doAction('chat:upload', {
+      var uploadPayload = {
         id: id,
         data: base64,
         filename: file.name || 'pasted-image.png',
         mimeType: file.type || 'application/octet-stream',
+      };
+      _state.pendingAttachments.forEach(function (a) {
+        if (a.id === id) {
+          a._pendingUpload = {
+            data: uploadPayload.data,
+            filename: uploadPayload.filename,
+            mimeType: uploadPayload.mimeType,
+          };
+          if (_state.isDraft) { a.status = 'ready'; }
+        }
       });
+      if (_state.isDraft) {
+        renderAttachPreviews();
+        return;
+      }
+      doAction('chat:upload', uploadPayload);
     };
     reader.readAsDataURL(file);
   }

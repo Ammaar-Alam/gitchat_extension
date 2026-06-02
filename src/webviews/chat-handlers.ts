@@ -37,6 +37,25 @@ export interface ChatContext {
   disposePanel(): void;
 }
 
+interface OutgoingAttachment {
+  type: string;
+  url: string;
+  storage_path: string;
+  filename?: string;
+  mime_type?: string;
+  size_bytes?: number;
+  duration_seconds?: number;
+  thumbnail_url?: string;
+}
+
+interface PendingUpload {
+  data?: string;
+  filename?: string;
+  mimeType?: string;
+}
+
+type PostTarget = Pick<ChatContext, "postToWebview" | "prefixMessages">;
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -46,6 +65,53 @@ function post(ctx: ChatContext, msg: Record<string, unknown>): void {
     msg = { ...msg, type: `chat:${msg.type}` };
   }
   ctx.postToWebview(msg);
+}
+
+function postToTarget(target: PostTarget | undefined, msg: Record<string, unknown>): void {
+  if (!target) { return; }
+  if (target.prefixMessages && typeof msg.type === "string") {
+    msg = { ...msg, type: `chat:${msg.type}` };
+  }
+  target.postToWebview(msg);
+}
+
+export function isDraftConversationId(conversationId: string | undefined): conversationId is string {
+  return typeof conversationId === "string" && conversationId.indexOf("draft:") === 0;
+}
+
+function isFollowGateError(err: unknown): boolean {
+  const e = err as { response?: { data?: { error?: { message?: string } } } };
+  return /follow this user on GitHub/i.test(e?.response?.data?.error?.message ?? "");
+}
+
+export async function ensureRealConversationIdForChatAction(conversationId: string, target?: PostTarget): Promise<string> {
+  if (!isDraftConversationId(conversationId)) { return conversationId; }
+
+  const recipientLogin = conversationId.slice("draft:".length);
+  const { apiClient } = await import("../api");
+
+  let conv;
+  try {
+    conv = await apiClient.createConversation(recipientLogin);
+  } catch (err) {
+    if (!isFollowGateError(err)) { throw err; }
+    try { await apiClient.syncGitHubFollows(); } catch { /* ignore, retry anyway */ }
+    conv = await apiClient.createConversation(recipientLogin);
+  }
+
+  const realConversationId = conv.id;
+  const { exploreWebviewProvider } = await import("./explore");
+  await exploreWebviewProvider?.navigateToChat(realConversationId, recipientLogin);
+  postToTarget(target, { type: "draftPromoted", draftId: conversationId, conversationId: realConversationId });
+  const { chatPanelWebviewProvider } = await import("./chat-panel");
+  chatPanelWebviewProvider?.renameDraftKey(conversationId, realConversationId);
+  return realConversationId;
+}
+
+function withAttachmentType(result: Omit<OutgoingAttachment, "type"> & { type?: string; is_video?: boolean }, mimeType?: string): OutgoingAttachment {
+  if (result.type) { return result as OutgoingAttachment; }
+  const type = result.is_video ? "video" : (mimeType?.startsWith("image/") || result.mime_type?.startsWith("image/") ? "image" : "file");
+  return { ...result, type };
 }
 
 function getEligibilityMessage(err: unknown): string {
@@ -97,67 +163,66 @@ export async function handleChatMessage(
     case "send": {
       const sp = msg.payload as {
         content?: string; _tempId?: string; suppressLinkPreview?: boolean; topicId?: string;
-        attachments?: { type: string; url: string; storage_path: string; filename?: string; mime_type?: string; size_bytes?: number; duration_seconds?: number; thumbnail_url?: string }[];
+        attachments?: OutgoingAttachment[];
+        pendingUploads?: PendingUpload[];
       };
-      if (!sp?.content && !sp?.attachments?.length) { return true; }
+      if (!sp?.content && !sp?.attachments?.length && !sp?.pendingUploads?.length) { return true; }
 
       let conversationId = ctx.conversationId;
 
       // #112 — Lazy create: if we're in a draft, mint the conversation now
       // before sending. Preserve the follow-gate retry pattern from the
       // previous eager-create flow in gitchat.messageUser.
-      if (typeof conversationId === "string" && conversationId.indexOf("draft:") === 0) {
-        const recipientLogin = conversationId.slice("draft:".length);
-        const isFollowGateError = (err: unknown): boolean => {
-          const e = err as { response?: { data?: { error?: { message?: string } } } };
-          return /follow this user on GitHub/i.test(e?.response?.data?.error?.message ?? "");
-        };
-        try {
-          let conv;
-          try {
-            conv = await apiClient.createConversation(recipientLogin);
-          } catch (err) {
-            if (isFollowGateError(err)) {
-              try { await apiClient.syncGitHubFollows(); } catch { /* ignore, retry anyway */ }
-              conv = await apiClient.createConversation(recipientLogin);
-            } else {
-              throw err;
-            }
-          }
-          conversationId = conv.id;
-          // Swap the active conversation on the host side and inform the webview.
-          const { exploreWebviewProvider } = await import("./explore");
-          await exploreWebviewProvider?.navigateToChat(conv.id, recipientLogin);
-          post(ctx, { type: "chat:draftPromoted", draftId: `draft:${recipientLogin}`, conversationId: conv.id });
-          const { chatPanelWebviewProvider: cpMint } = await import("./chat-panel");
-          cpMint?.renameDraftKey(`draft:${recipientLogin}`, conv.id);
-        } catch (err) {
-          const e = err as { response?: { data?: { error?: { message?: string } } }; message?: string };
-          const beMsg = e?.response?.data?.error?.message;
-          post(ctx, { type: "messageFailed", tempId: sp._tempId, content: sp.content, error: beMsg || e?.message || "Failed to start conversation" });
-          return true;
-        }
+      try {
+        conversationId = await ensureRealConversationIdForChatAction(conversationId, ctx);
+        ctx.conversationId = conversationId;
+      } catch (err) {
+        const e = err as { response?: { data?: { error?: { message?: string } } }; message?: string };
+        const beMsg = e?.response?.data?.error?.message;
+        post(ctx, { type: "messageFailed", tempId: sp._tempId, content: sp.content, error: beMsg || e?.message || "Failed to start conversation" });
+        return true;
       }
 
       try {
+        const attachments: OutgoingAttachment[] = [...(sp.attachments ?? [])];
+        for (const pending of sp.pendingUploads ?? []) {
+          if (!pending.data) { continue; }
+          const buffer = Buffer.from(pending.data, "base64");
+          const isVideo = pending.mimeType?.startsWith("video/") ?? false;
+          const maxSize = isVideo ? 100 * 1024 * 1024 : 10 * 1024 * 1024;
+          if (buffer.length > maxSize) {
+            const sizeMB = (buffer.length / 1024 / 1024).toFixed(1);
+            throw new Error(`File too large (${sizeMB}MB)`);
+          }
+          const uploaded = await apiClient.uploadAttachment(
+            conversationId,
+            buffer,
+            pending.filename || "attachment",
+            pending.mimeType || "application/octet-stream",
+          );
+          attachments.push(withAttachmentType(uploaded, pending.mimeType));
+        }
+
+        const sendAttachments = attachments.length ? attachments : undefined;
         let sent;
         if (sp.topicId && ctx.topicParentConvId) {
           // Topic endpoint — BE verifyParticipant resolves parent for membership check.
           // Standard sendMessage(topicId) won't work because topic rows have empty
           // participant_1/2 (placeholder per BE design, inheritance only via parent).
-          sent = await apiClient.sendTopicMessage(ctx.topicParentConvId, sp.topicId, sp.content || "", sp.attachments);
+          sent = await apiClient.sendTopicMessage(ctx.topicParentConvId, sp.topicId, sp.content || "", sendAttachments);
         } else {
-          sent = await apiClient.sendMessage(conversationId, sp.content || "", sp.attachments);
+          sent = await apiClient.sendMessage(conversationId, sp.content || "", sendAttachments);
         }
         const sentId = (sent as unknown as Record<string, string>).id;
         if (sentId) { ctx.recentlySentIds.add(sentId); }
         const payload = sp.suppressLinkPreview ? { ...sent, suppress_link_preview: true } : sent;
         post(ctx, { type: "newMessage", payload });
         const { chatPanelWebviewProvider: cpSend } = await import("./chat-panel");
-        cpSend.clearDraft(conversationId);
+        cpSend?.clearDraft(conversationId);
       } catch (sendErr) {
         const se = sendErr as { response?: { status?: number; data?: unknown }; message?: string };
-        log(`[chat] sendMessage FAILED for conv=${conversationId}: status=${se?.response?.status} msg=${se?.message} data=${JSON.stringify(se?.response?.data).slice(0, 200)}`, "error");
+        const responseData = se?.response?.data === undefined ? "" : JSON.stringify(se.response.data).slice(0, 200);
+        log(`[chat] sendMessage FAILED for conv=${conversationId}: status=${se?.response?.status} msg=${se?.message} data=${responseData}`, "error");
         post(ctx, { type: "messageFailed", tempId: sp._tempId, content: sp.content });
       }
       return true;
@@ -753,6 +818,11 @@ export async function handleChatMessage(
           const sizeMB = (buffer.length / 1024 / 1024).toFixed(1);
           post(ctx, { type: "uploadFailed", id: up.id });
           vscode.window.showWarningMessage(`File too large (${sizeMB}MB, max 10MB): ${up.filename}`);
+          return true;
+        }
+        if (isDraftConversationId(ctx.conversationId)) {
+          log(`Upload skipped for draft conversation ${ctx.conversationId}; draft attachments upload on send`, "warn");
+          post(ctx, { type: "uploadFailed", id: up.id });
           return true;
         }
         try {

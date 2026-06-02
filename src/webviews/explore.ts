@@ -6,7 +6,7 @@ import { presenceStore } from "../realtime/presence-store";
 import { configManager } from "../config";
 import { getNonce, getUri, log } from "../utils";
 import type { Conversation, ExtensionModule, RepoChannel, UserProfile, WebviewMessage } from "../types";
-import { handleChatMessage, extractPinnedMessages, type ChatContext, type CursorState } from "./chat-handlers";
+import { handleChatMessage, extractPinnedMessages, isDraftConversationId, type ChatContext, type CursorState } from "./chat-handlers";
 import { notificationStore } from "../notifications/notification-store";
 import { toastCoordinator } from "../notifications/toast-coordinator";
 import { fireFollowChanged, onDidChangeFollow } from "../events/follow";
@@ -665,7 +665,19 @@ export class ExploreWebviewProvider implements vscode.WebviewViewProvider {
         dataUri = `data:${mimeType};base64,${buffer.toString("base64")}`;
       }
 
-      this.postToWebview({ type: "chat:addPickedFile", id, filename, mimeType, dataUri: isImage ? dataUri : null, isVideo });
+      const isDraftUpload = isDraftConversationId(this._activeChatConvId);
+      this.postToWebview({
+        type: "chat:addPickedFile",
+        id,
+        filename,
+        mimeType,
+        dataUri: isImage ? dataUri : null,
+        isVideo,
+        deferredUpload: isDraftUpload,
+        data: isDraftUpload ? buffer.toString("base64") : undefined,
+      });
+
+      if (isDraftUpload) { return; }
 
       const result = await apiClient.uploadAttachment(this._activeChatConvId!, buffer, filename, mimeType);
       const attachment = {
