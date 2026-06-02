@@ -82,38 +82,11 @@
     return '<div class="gs-letter-avatar" style="width:' + size + 'px;height:' + size + 'px;background:' + gradient + ';font-size:' + fontSize + 'px">' + escapeHtml(letter) + '</div>';
   }
 
-  // Emoji shortcode map
-  var _emojiShortcodes = {
-    ':)': '😊', ':-)': '😊', '=)': '😊',
-    ':(': '😞', ':-(': '😞',
-    ':D': '😄', ':-D': '😄',
-    ':P': '😛', ':-P': '😛', ':p': '😛',
-    ';)': '😉', ';-)': '😉',
-    '<3': '❤️',
-    ':o': '😮', ':O': '😮', ':-O': '😮',
-    'B)': '😎', 'B-)': '😎',
-    ':/': '😕', ':-/': '😕',
-    ':*': '😘', ':-*': '😘',
-    '>:(': '😠',
-    ":'(": '😢',
-    ':fire:': '🔥', ':+1:': '👍', ':-1:': '👎',
-    ':heart:': '❤️', ':star:': '⭐', ':ok:': '👌',
-    ':clap:': '👏', ':wave:': '👋', ':pray:': '🙏',
-    ':100:': '💯', ':eyes:': '👀', ':thinking:': '🤔',
-    ':laugh:': '😂', ':cry:': '😭', ':angry:': '😡',
-    ':cool:': '😎', ':love:': '😍', ':wink:': '😉',
-    ':skull:': '💀', ':rocket:': '🚀', ':tada:': '🎉',
-    ':thumbsup:': '👍', ':thumbsdown:': '👎',
-    ':check:': '✅', ':x:': '❌',
-  };
-  var _emojiPattern = null;
   function replaceEmojiShortcodes(text) {
-    if (!_emojiPattern) {
-      var keys = Object.keys(_emojiShortcodes).sort(function (a, b) { return b.length - a.length; });
-      var escaped = keys.map(function (k) { return k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); });
-      _emojiPattern = new RegExp('(?:^|(?<=\\s))(' + escaped.join('|') + ')(?=\\s|$)', 'g');
+    if (window.GitChatEmojiShortcodes && typeof window.GitChatEmojiShortcodes.replaceEmojiShortcodes === 'function') {
+      return window.GitChatEmojiShortcodes.replaceEmojiShortcodes(text);
     }
-    return text.replace(_emojiPattern, function (m) { return _emojiShortcodes[m] || m; });
+    return text;
   }
 
   // Parse the "Forwarded" prefix off a message body. Returns { matched, sender, body }.
