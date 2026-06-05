@@ -121,6 +121,33 @@ function getEligibilityMessage(err: unknown): string {
   return errMsg || "You are not eligible to join this conversation.";
 }
 
+export function extractBackendError(err: unknown): string {
+  const se = err as { response?: { status?: number; data?: unknown }; message?: string };
+  const data = se?.response?.data;
+  const fromNode = (node: unknown): string | undefined => {
+    if (node == null) { return undefined; }
+    if (typeof node === "string") { return node; }
+    if (Array.isArray(node)) {
+      const parts = node.map((n) => fromNode(n)).filter(Boolean);
+      return parts.length ? parts.join("; ") : undefined;
+    }
+    if (typeof node === "object") {
+      const o = node as Record<string, unknown>;
+      return fromNode(o.message) ?? fromNode(o.error) ?? fromNode(o.detail) ?? fromNode(o.code);
+    }
+    return undefined;
+  };
+  const backendMessage = fromNode(data);
+  if (backendMessage) { return backendMessage; }
+  if (data !== undefined && data !== null) {
+    try {
+      const raw = JSON.stringify(data);
+      if (raw && raw !== "{}" && raw !== '""') { return raw.slice(0, 160); }
+    } catch { /* fall through */ }
+  }
+  return se?.message || "Failed to send";
+}
+
 export function extractPinnedMessages(pins: unknown[]): Record<string, unknown>[] {
   return (pins as Record<string, unknown>[]).map(m => {
     const nested = (m.message != null && typeof m.message === "object")
@@ -177,9 +204,7 @@ export async function handleChatMessage(
         conversationId = await ensureRealConversationIdForChatAction(conversationId, ctx);
         ctx.conversationId = conversationId;
       } catch (err) {
-        const e = err as { response?: { data?: { error?: { message?: string } } }; message?: string };
-        const beMsg = e?.response?.data?.error?.message;
-        post(ctx, { type: "messageFailed", tempId: sp._tempId, content: sp.content, error: beMsg || e?.message || "Failed to start conversation" });
+        post(ctx, { type: "messageFailed", tempId: sp._tempId, content: sp.content, error: extractBackendError(err) });
         return true;
       }
 
@@ -221,9 +246,12 @@ export async function handleChatMessage(
         cpSend?.clearDraft(conversationId);
       } catch (sendErr) {
         const se = sendErr as { response?: { status?: number; data?: unknown }; message?: string };
-        const responseData = se?.response?.data === undefined ? "" : JSON.stringify(se.response.data).slice(0, 200);
-        log(`[chat] sendMessage FAILED for conv=${conversationId}: status=${se?.response?.status} msg=${se?.message} data=${responseData}`, "error");
-        post(ctx, { type: "messageFailed", tempId: sp._tempId, content: sp.content });
+        const responseData = se?.response?.data === undefined ? "" : JSON.stringify(se.response.data).slice(0, 300);
+        const hadAttachments = (sp.attachments?.length ?? 0) + (sp.pendingUploads?.length ?? 0) > 0;
+        log(`[chat] sendMessage FAILED for conv=${conversationId} attachments=${hadAttachments}: status=${se?.response?.status} msg=${se?.message} data=${responseData}`, "error");
+        const status = se?.response?.status;
+        const detail = extractBackendError(sendErr);
+        post(ctx, { type: "messageFailed", tempId: sp._tempId, content: sp.content, error: status ? `${detail} (${status})` : detail });
       }
       return true;
     }

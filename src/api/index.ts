@@ -38,6 +38,37 @@ class TtlCache<T> {
   invalidate(): void { this._expiry = 0; }
 }
 
+/** Attachment fields the backend's message endpoints accept. */
+interface OutgoingAttachmentInput {
+  type: string;
+  url: string;
+  storage_path: string;
+  filename?: string;
+  mime_type?: string;
+  size_bytes?: number;
+  duration_seconds?: number;
+  thumbnail_url?: string;
+  is_video?: boolean;
+}
+
+function sanitizeOutgoingAttachments(
+  attachments: OutgoingAttachmentInput[],
+): Record<string, unknown>[] {
+  return attachments.map((a) => {
+    const clean: Record<string, unknown> = {
+      type: a.type,
+      url: a.url,
+      storage_path: a.storage_path,
+    };
+    if (a.filename !== undefined) { clean.filename = a.filename; }
+    if (a.mime_type !== undefined) { clean.mime_type = a.mime_type; }
+    if (a.size_bytes !== undefined) { clean.size_bytes = a.size_bytes; }
+    if (a.duration_seconds !== undefined) { clean.duration_seconds = a.duration_seconds; }
+    if (a.thumbnail_url !== undefined) { clean.thumbnail_url = a.thumbnail_url; }
+    return clean;
+  });
+}
+
 class ApiClient {
   private _http!: AxiosInstance;
   get http(): AxiosInstance { return this._http; }
@@ -230,9 +261,9 @@ class ApiClient {
     };
   }
 
-  async sendMessage(conversationId: string, content: string, attachments?: { type: string; url: string; storage_path: string; filename?: string; mime_type?: string; size_bytes?: number; duration_seconds?: number; thumbnail_url?: string }[]): Promise<Message> {
+  async sendMessage(conversationId: string, content: string, attachments?: OutgoingAttachmentInput[]): Promise<Message> {
     const payload: Record<string, unknown> = { body: content };
-    if (attachments?.length) { payload.attachments = attachments; }
+    if (attachments?.length) { payload.attachments = sanitizeOutgoingAttachments(attachments); }
     const { data } = await this._http.post(`/messages/conversations/${conversationId}`, payload, { timeout: 8000 });
     return data.data ?? data;
   }
@@ -246,7 +277,29 @@ class ApiClient {
       headers: form.getHeaders(),
       timeout: 60000,
     });
-    return data.data ?? data;
+    const raw = (data?.data ?? data ?? {}) as Record<string, unknown>;
+    const pick = (...keys: string[]): string | undefined => {
+      for (const key of keys) {
+        const value = raw[key];
+        if (typeof value === "string" && value.length > 0) { return value; }
+      }
+      return undefined;
+    };
+    const url = pick("url", "file_url", "fileUrl", "signed_url", "signedUrl", "public_url", "publicUrl", "download_url", "downloadUrl");
+    const storagePath = pick("storage_path", "storagePath", "path", "key", "storage_key", "storageKey");
+    if (!url) {
+      log(`[upload] response missing a usable url field; keys: ${Object.keys(raw).join(", ")}`, "warn");
+    }
+    return {
+      ...(raw as object),
+      url: url ?? (typeof raw.url === "string" ? raw.url : ""),
+      storage_path: storagePath ?? (typeof raw.storage_path === "string" ? raw.storage_path : ""),
+      filename: (typeof raw.filename === "string" ? raw.filename : filename),
+      mime_type: (typeof raw.mime_type === "string" ? raw.mime_type : mimeType),
+      size_bytes: (typeof raw.size_bytes === "number" ? raw.size_bytes : fileBuffer.length),
+      is_video: typeof raw.is_video === "boolean" ? raw.is_video : mimeType.startsWith("video/"),
+      type: typeof raw.type === "string" ? raw.type : undefined,
+    } as { url: string; storage_path: string; filename: string; mime_type: string; size_bytes: number; is_video?: boolean; type?: string };
   }
 
   async createConversation(username: string): Promise<Conversation> {
@@ -403,9 +456,9 @@ class ApiClient {
     return data.data ?? data;
   }
 
-  async replyToMessage(conversationId: string, content: string, replyToId: string, attachments?: { type: string; url: string; storage_path: string; filename?: string; mime_type?: string; size_bytes?: number; duration_seconds?: number; thumbnail_url?: string }[]): Promise<Message> {
+  async replyToMessage(conversationId: string, content: string, replyToId: string, attachments?: OutgoingAttachmentInput[]): Promise<Message> {
     const payload: Record<string, unknown> = { body: content, reply_to_id: replyToId };
-    if (attachments?.length) { payload.attachments = attachments; }
+    if (attachments?.length) { payload.attachments = sanitizeOutgoingAttachments(attachments); }
     const { data } = await this._http.post(`/messages/conversations/${conversationId}`, payload, { timeout: 8000 });
     return data.data ?? data;
   }
@@ -557,9 +610,9 @@ class ApiClient {
     };
   }
 
-  async sendTopicMessage(conversationId: string, topicId: string, content: string, attachments?: { type: string; url: string; storage_path: string; filename?: string; mime_type?: string; size_bytes?: number; duration_seconds?: number; thumbnail_url?: string }[], replyToId?: string): Promise<Message> {
+  async sendTopicMessage(conversationId: string, topicId: string, content: string, attachments?: OutgoingAttachmentInput[], replyToId?: string): Promise<Message> {
     const body: Record<string, unknown> = { body: content };
-    if (attachments?.length) { body.attachments = attachments; }
+    if (attachments?.length) { body.attachments = sanitizeOutgoingAttachments(attachments); }
     if (replyToId) { body.reply_to_id = replyToId; }
     const { data } = await this._http.post(
       `/messages/conversations/${conversationId}/topics/${topicId}/messages`,

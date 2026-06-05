@@ -765,16 +765,20 @@
     if (!allAttachments.length && msg.attachment_url) {
       allAttachments.push({ url: msg.attachment_url, mime_type: 'image/jpeg', filename: 'image' });
     }
+    function attachUrl(a) {
+      return a.url || a.file_url || a.fileUrl || a.signed_url || a.signedUrl ||
+        a.public_url || a.publicUrl || a.download_url || a.thumbnail_url || a.thumbnailUrl || '';
+    }
     function isImageAttach(a) {
       if (a.mime_type && a.mime_type.startsWith('image/')) return true;
       if (a.type === 'gif' || a.type === 'image') return true;
-      var url = (a.url || a.file_url || '').split('?')[0].toLowerCase();
+      var url = attachUrl(a).split('?')[0].toLowerCase();
       return /\.(png|jpg|jpeg|gif|webp|svg|bmp)$/.test(url);
     }
     function isVideoAttach(a) {
       if (a.mime_type && a.mime_type.startsWith('video/')) return true;
       if (a.type === 'video') return true;
-      var url = (a.url || '').split('?')[0].toLowerCase();
+      var url = attachUrl(a).split('?')[0].toLowerCase();
       return /\.(mp4|mov|m4v|webm)$/.test(url);
     }
     var imageAttachments = allAttachments.filter(function(a) { return isImageAttach(a) && !isVideoAttach(a); });
@@ -787,7 +791,7 @@
       if (imgCount <= 4) {
         var gridCls = 'gs-sc-img-grid gs-sc-img-grid-' + imgCount;
         var imgs = imageAttachments.map(function (a) {
-          var src = escapeHtml(a.url || a.file_url);
+          var src = escapeHtml(attachUrl(a));
           return '<div class="gs-sc-img-cell"><img src="' + src + '" alt="' +
             escapeHtml(a.filename || 'image') + '" class="gs-sc-attachment-img" data-url="' + src + '" /></div>';
         }).join('');
@@ -795,14 +799,14 @@
       } else {
         // 5+ images: Telegram mosaic — hero + rows of 3
         var mosaicHtml = '<div class="gs-sc-img-mosaic">';
-        var heroSrc = escapeHtml(imageAttachments[0].url || imageAttachments[0].file_url);
+        var heroSrc = escapeHtml(attachUrl(imageAttachments[0]));
         mosaicHtml += '<div class="gs-sc-img-mosaic-hero"><img src="' + heroSrc + '" class="gs-sc-attachment-img" data-url="' + heroSrc + '" /></div>';
         var rest = imageAttachments.slice(1);
         for (var ri = 0; ri < rest.length; ri += 3) {
           var rowItems = rest.slice(ri, ri + 3);
           mosaicHtml += '<div class="gs-sc-img-mosaic-row gs-sc-img-mosaic-row-' + rowItems.length + '">';
           rowItems.forEach(function (a) {
-            var s = escapeHtml(a.url || a.file_url);
+            var s = escapeHtml(attachUrl(a));
             mosaicHtml += '<div class="gs-sc-img-mosaic-cell"><img src="' + s + '" class="gs-sc-attachment-img" data-url="' + s + '" /></div>';
           });
           mosaicHtml += '</div>';
@@ -815,7 +819,7 @@
       attachHtml += videoAttachments.map(function(a) {
         var thumbSrc = a.thumbnail_url ? escapeHtml(a.thumbnail_url) : '';
         var dur = a.duration_seconds ? formatVideoDuration(a.duration_seconds) : '';
-        var videoUrl = escapeHtml(a.url || '');
+        var videoUrl = escapeHtml(attachUrl(a));
         return '<div class="gs-sc-video-bubble" data-url="' + videoUrl + '" tabindex="0" role="button" aria-label="Play video">' +
           (thumbSrc ? '<img src="' + thumbSrc + '" class="gs-sc-video-thumb" alt="" />' : '<div class="gs-sc-video-thumb gs-sc-video-no-thumb"></div>') +
           '<span class="gs-sc-video-play codicon codicon-play-circle"></span>' +
@@ -824,7 +828,7 @@
       }).join('');
     }
     attachHtml += fileAttachments.map(function (a) {
-      return '<a href="' + escapeHtml(a.url || a.file_url) + '" class="gs-sc-file-link">' +
+      return '<a href="' + escapeHtml(attachUrl(a)) + '" class="gs-sc-file-link">' +
         '<span class="codicon codicon-file"></span> ' + escapeHtml(a.filename || 'attachment') + '</a>';
     }).join('');
 
@@ -5115,10 +5119,11 @@
           var statusEl = failEl.querySelector('.gs-sc-status');
           if (statusEl) {
             statusEl.className = 'gs-sc-status gs-sc-status-failed';
-            statusEl.title = 'Failed to send';
+            statusEl.title = data.error || 'Failed to send';
             statusEl.innerHTML = '<i class="codicon codicon-error"></i>';
           }
         }
+        if (data.error) { showToast(data.error, 4000); }
         break;
       }
 
