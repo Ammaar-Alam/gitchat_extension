@@ -2617,6 +2617,45 @@
   color: var(--gs-muted);
 }
 
+.gs-sc-emoji-ac-dropdown {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  background: var(--gs-widget-bg);
+  border: 1px solid var(--gs-border);
+  border-radius: var(--gs-radius) var(--gs-radius) 0 0;
+  box-shadow: var(--gs-shadow-md);
+  z-index: 15;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.gs-sc-emoji-ac-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+
+.gs-sc-emoji-ac-item:hover,
+.gs-sc-emoji-ac-selected {
+  background: var(--gs-hover);
+}
+
+.gs-sc-emoji-ac-glyph {
+  font-size: var(--gs-font-lg);
+  width: 24px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.gs-sc-emoji-ac-code {
+  font-size: var(--gs-font-xs);
+  color: var(--gs-fg);
+}
+
 /* ═══════════════════════════════════════════════════════
    GROUP INFO PANEL (.gs-sc-gi-*)
    ═══════════════════════════════════════════════════════ */

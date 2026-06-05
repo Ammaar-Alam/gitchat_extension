@@ -204,6 +204,7 @@
     wireReactionClicks();
     wireImageLightbox();
     wireMentionAutocomplete();
+    wireEmojiAutocomplete();
     wireDragDrop();
     wirePasteImage();
   }
@@ -216,6 +217,8 @@
     // BUG 7: Close overlays BEFORE clearing DOM (they reference _els)
     closeSearch();
     closeEmojiPicker();
+    hideEmojiAcDropdown();
+    _emojiAcDropdown = null;
     closePinnedView();
 
     // BUG 11: Save conversationId before resetState clears it
@@ -1566,6 +1569,7 @@
         e.preventDefault();
         // Don't send when mention autocomplete is active — let mention handler pick it up
         if (_mentionActive && _mentionUsers.length > 0) return;
+        if (_emojiAcActive && _emojiAcMatches.length > 0) return;
         sendMessage();
         return;
       }
@@ -4185,6 +4189,187 @@
     _mentionActive = false;
     _mentionUsers = [];
     if (_mentionDropdown) _mentionDropdown.style.display = 'none';
+  }
+
+  // ═══════════════════════════════════════════
+  // :EMOJI: SHORTCODE AUTOCOMPLETE
+  // ═══════════════════════════════════════════
+
+  var _emojiAcActive = false;
+  var _emojiAcStartPos = -1;
+  var _emojiAcMatches = [];
+  var _emojiAcSelIdx = 0;
+  var _emojiAcDropdown = null;
+  var _emojiUsage = null;
+  var EMOJI_AC_LIMIT = 8;
+
+  function loadEmojiUsage() {
+    if (_emojiUsage) { return _emojiUsage; }
+    try {
+      var st = (typeof vscode !== 'undefined' && vscode.getState && vscode.getState()) || {};
+      _emojiUsage = (st && st.gitchatEmojiUsage) || {};
+    } catch (e) {
+      _emojiUsage = {};
+    }
+    return _emojiUsage;
+  }
+
+  function bumpEmojiUsage(code) {
+    if (!code) { return; }
+    var usage = loadEmojiUsage();
+    usage[code] = (usage[code] || 0) + 1;
+    var codes = Object.keys(usage);
+    if (codes.length > 200) {
+      codes.forEach(function (c) {
+        var v = Math.floor(usage[c] / 2);
+        if (v > 0) { usage[c] = v; } else { delete usage[c]; }
+      });
+    }
+    try {
+      var st = (typeof vscode !== 'undefined' && vscode.getState && vscode.getState()) || {};
+      st.gitchatEmojiUsage = usage;
+      if (typeof vscode !== 'undefined' && vscode.setState) { vscode.setState(st); }
+    } catch (e) {
+      // State is best-effort; the in-memory table still works for this session.
+    }
+  }
+
+  function emojiSearch(query) {
+    if (!(window.GitChatEmojiShortcodes && typeof window.GitChatEmojiShortcodes.search === 'function')) {
+      return [];
+    }
+    var usage = loadEmojiUsage();
+    var hasUsage = false;
+    for (var k in usage) { if (usage[k] > 0) { hasUsage = true; break; } }
+    if (!hasUsage) { return window.GitChatEmojiShortcodes.search(query, EMOJI_AC_LIMIT); }
+
+    var candidates = window.GitChatEmojiShortcodes.search(query, 40);
+    candidates.forEach(function (m, i) { m._origIdx = i; });
+    candidates.sort(function (a, b) {
+      var sa = (a.score == null ? 99 : a.score);
+      var sb = (b.score == null ? 99 : b.score);
+      if (sa !== sb) { return sa - sb; }
+      var ua = usage[a.code] || 0;
+      var ub = usage[b.code] || 0;
+      if (ua !== ub) { return ub - ua; }
+      return a._origIdx - b._origIdx;
+    });
+    return candidates.slice(0, EMOJI_AC_LIMIT).map(function (m) {
+      return { code: m.code, emoji: m.emoji };
+    });
+  }
+
+  function detectEmojiToken(value, cursor) {
+    var textBefore = value.slice(0, cursor);
+    var colon = textBefore.lastIndexOf(':');
+    if (colon < 0) { return null; }
+    var charBefore = colon > 0 ? textBefore[colon - 1] : ' ';
+    if (!(charBefore === ' ' || charBefore === '\n' || colon === 0)) { return null; }
+    var query = textBefore.slice(colon + 1);
+    if (query.length < 1) { return null; }
+    if (!/^[A-Za-z0-9_+-]+$/.test(query)) { return null; }
+    return { start: colon, query: query };
+  }
+
+  function wireEmojiAutocomplete() {
+    var input = getInputEl();
+    if (!input) { return; }
+
+    input.addEventListener('input', function () {
+      if (_isComposing) { return; }
+      var token = detectEmojiToken(input.value, input.selectionStart || 0);
+      if (token) {
+        var matches = emojiSearch(token.query);
+        if (matches.length > 0) {
+          _emojiAcActive = true;
+          _emojiAcStartPos = token.start;
+          _emojiAcMatches = matches;
+          _emojiAcSelIdx = 0;
+          renderEmojiAcDropdown();
+          return;
+        }
+      }
+      hideEmojiAcDropdown();
+    });
+
+    input.addEventListener('keydown', function (e) {
+      if (e.isComposing || _isComposing) { return; }
+      if (!_emojiAcActive || !_emojiAcDropdown) { return; }
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        _emojiAcSelIdx = Math.min(_emojiAcSelIdx + 1, _emojiAcMatches.length - 1);
+        renderEmojiAcDropdown();
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        _emojiAcSelIdx = Math.max(_emojiAcSelIdx - 1, 0);
+        renderEmojiAcDropdown();
+      } else if (e.key === 'Enter' || e.key === 'Tab') {
+        if (_emojiAcMatches.length > 0) {
+          e.preventDefault();
+          e.stopPropagation();
+          insertEmoji(_emojiAcMatches[_emojiAcSelIdx]);
+        }
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        hideEmojiAcDropdown();
+      }
+    });
+  }
+
+  function renderEmojiAcDropdown() {
+    if (!_emojiAcDropdown || !_emojiAcDropdown.isConnected) {
+      _emojiAcDropdown = document.createElement('div');
+      _emojiAcDropdown.className = 'gs-sc-emoji-ac-dropdown';
+      var inputArea = _els.inputArea;
+      if (inputArea) {
+        inputArea.style.position = 'relative';
+        inputArea.appendChild(_emojiAcDropdown);
+      }
+    }
+    if (!_emojiAcDropdown) { return; }
+    _emojiAcDropdown.style.display = 'block';
+    _emojiAcDropdown.innerHTML = _emojiAcMatches.map(function (m, i) {
+      return '<div class="gs-sc-emoji-ac-item' + (i === _emojiAcSelIdx ? ' gs-sc-emoji-ac-selected' : '') + '" data-index="' + i + '">' +
+        '<span class="gs-sc-emoji-ac-glyph">' + escapeHtml(m.emoji) + '</span>' +
+        '<span class="gs-sc-emoji-ac-code">:' + escapeHtml(m.code) + ':</span>' +
+      '</div>';
+    }).join('');
+
+    _emojiAcDropdown.querySelectorAll('.gs-sc-emoji-ac-item').forEach(function (el) {
+      el.addEventListener('mousedown', function (ev) {
+        ev.preventDefault();
+        insertEmoji(_emojiAcMatches[parseInt(el.dataset.index, 10)]);
+      });
+    });
+
+    var selected = _emojiAcDropdown.querySelector('.gs-sc-emoji-ac-selected');
+    if (selected) { selected.scrollIntoView({ block: 'nearest' }); }
+  }
+
+  function insertEmoji(match) {
+    if (!match) { return; }
+    var input = getInputEl();
+    if (!input) { return; }
+    bumpEmojiUsage(match.code);
+    var val = input.value;
+    var cursor = input.selectionStart || val.length;
+    var before = val.slice(0, _emojiAcStartPos);
+    var after = val.slice(cursor);
+    input.value = before + match.emoji + after;
+    var newPos = before.length + match.emoji.length;
+    input.setSelectionRange(newPos, newPos);
+    input.focus();
+    hideEmojiAcDropdown();
+    input.style.height = 'auto';
+    input.style.height = (input.scrollHeight + 2) + 'px';
+    if (_els.sendBtn) { _els.sendBtn.style.display = input.value.trim() ? '' : 'none'; }
+  }
+
+  function hideEmojiAcDropdown() {
+    _emojiAcActive = false;
+    _emojiAcMatches = [];
+    if (_emojiAcDropdown) { _emojiAcDropdown.style.display = 'none'; }
   }
 
   // ═══════════════════════════════════════════

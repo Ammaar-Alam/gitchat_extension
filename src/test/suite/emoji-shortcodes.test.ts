@@ -52,4 +52,19 @@ suite("GitChatEmojiShortcodes", () => {
       "✅ 😍 😭",
     );
   });
+
+  test("supports the full GitHub shortcode table", () => {
+    assert.strictEqual(
+      emojiShortcodes.replaceEmojiShortcodes("sad :disappointed:"),
+      "sad 😞",
+    );
+    assert.ok(Object.keys(emojiShortcodes.shortcodes).length > 1000);
+  });
+
+  test("search returns ranked shortcode matches", () => {
+    const [first] = emojiShortcodes.search(":fire:", 5);
+    assert.strictEqual(first.code, "fire");
+    assert.strictEqual(first.emoji, "🔥");
+    assert.strictEqual(first.score, 0);
+  });
 });
