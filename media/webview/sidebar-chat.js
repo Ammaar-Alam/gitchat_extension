@@ -4264,7 +4264,7 @@
     var colon = textBefore.lastIndexOf(':');
     if (colon < 0) { return null; }
     var charBefore = colon > 0 ? textBefore[colon - 1] : ' ';
-    if (!(charBefore === ' ' || charBefore === '\n' || colon === 0)) { return null; }
+    if (colon > 0 && /[A-Za-z0-9_+-]/.test(charBefore)) { return null; }
     var query = textBefore.slice(colon + 1);
     if (query.length < 1) { return null; }
     if (!/^[A-Za-z0-9_+-]+$/.test(query)) { return null; }

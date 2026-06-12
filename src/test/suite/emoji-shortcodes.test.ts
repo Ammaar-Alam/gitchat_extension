@@ -39,10 +39,10 @@ suite("GitChatEmojiShortcodes", () => {
     );
   });
 
-  test("keeps legacy emoticon replacement", () => {
+  test("does not replace legacy emoticon hotkeys", () => {
     assert.strictEqual(
-      emojiShortcodes.replaceEmojiShortcodes("ok :)"),
-      "ok 😊",
+      emojiShortcodes.replaceEmojiShortcodes("ok :) :p <3"),
+      "ok :) :p <3",
     );
   });
 
@@ -55,10 +55,17 @@ suite("GitChatEmojiShortcodes", () => {
 
   test("supports the full GitHub shortcode table", () => {
     assert.strictEqual(
-      emojiShortcodes.replaceEmojiShortcodes("sad :disappointed:"),
-      "sad 😞",
+      emojiShortcodes.replaceEmojiShortcodes("sad :disappointed: :pleading_face:"),
+      "sad 😞 🥺",
     );
     assert.ok(Object.keys(emojiShortcodes.shortcodes).length > 1000);
+  });
+
+  test("replaces adjacent complete shortcodes", () => {
+    assert.strictEqual(
+      emojiShortcodes.replaceEmojiShortcodes(":fire::rocket:"),
+      "🔥🚀",
+    );
   });
 
   test("search returns ranked shortcode matches", () => {

@@ -3851,27 +3851,7 @@
     "party": "party"
   };
 
-  var LEGACY_EMOTICONS = {
-    ':)': '😊', ':-)': '😊', '=)': '😊',
-    ':(': '😞', ':-(': '😞',
-    ':D': '😄', ':-D': '😄',
-    ':P': '😛', ':-P': '😛', ':p': '😛',
-    ';)': '😉', ';-)': '😉',
-    '<3': '❤️',
-    ':o': '😮', ':O': '😮', ':-O': '😮',
-    'B)': '😎', 'B-)': '😎',
-    ':/': '😕', ':-/': '😕',
-    ':*': '😘', ':-*': '😘',
-    '>:(': '😠',
-    ":'(": '😢',
-  };
-
-  var legacyPattern = null;
   var orderIndex = null; // code -> position, for stable popularity-ish ranking
-
-  function escapeRegExp(value) {
-    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  }
 
   function replaceDiscordShortcodes(text) {
     return text.replace(/:([A-Za-z0-9_+-]+):/g, function (match, name) {
@@ -3880,20 +3860,10 @@
     });
   }
 
-  function replaceLegacyEmoticons(text) {
-    if (!legacyPattern) {
-      var keys = Object.keys(LEGACY_EMOTICONS).sort(function (a, b) { return b.length - a.length; });
-      legacyPattern = new RegExp('(^|\\s)(' + keys.map(escapeRegExp).join('|') + ')(?=\\s|$)', 'g');
-    }
-    return text.replace(legacyPattern, function (_match, prefix, code) {
-      return prefix + (LEGACY_EMOTICONS[code] || code);
-    });
-  }
-
   function replaceEmojiShortcodes(text) {
     if (text == null || text === '') { return text || ''; }
     var value = String(text);
-    return replaceLegacyEmoticons(replaceDiscordShortcodes(value));
+    return replaceDiscordShortcodes(value);
   }
 
   function rank(code, q) {
